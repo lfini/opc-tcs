@@ -1,0 +1,8 @@
+Istruzioni di installazione
+
+L'installazione consiste semplicemente nell'estrarre i files dall'archivio in
+una directory dedicata.
+
+le procedure si possono lanciare come nell'esempio:
+
+       python  <percorso...>/cupola.py

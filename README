@@ -1,0 +1,62 @@
+
+Procedure python per la gestione dell'osservatorio OPC
+
+Luca Fini (luca.fini@gmail.com) - agosto 2018
+
+Codice previsto per python 3.x
+
+PROCEDURA PRINCIPALE
+
+cupola.py: GUI per il controllo della cupola dell'Osservatorio del Chianti
+
+Dipendenze: tkinter
+
+Il programma comunica via TCP/IP con il server di controllo della cupola
+tramite un protocollo "ad hoc" definito nel file: domecomm.py e comunica
+con il telescopio con il protocollo LX200 implementato nel file telecomm.py
+
+Il programma richiede una configurazione che può essere creata utilizzando
+l'opzione: -c (python cupola.py -c).
+
+Altre possibili opzioni sono descritte nella pagina di aiuto che si
+ottiene lanciando il programma con l'opzione: -h
+
+
+ALTRE PROCCEDURE DI SUPPORTO
+
+simulator.py: simulatore dei server della cupola e del telescopio (parziale).
+              Vedi instruzioni di uso con: python simulator.py -h
+
+timetest.py: Misura tempi di risposta tipici del server del telescopio 
+astrotest.py: Verifica prestazioni delle procedure in astro.py (vedi sotto)
+
+
+LIBRERIE
+
+I seguenti file contengono varie funzioni utilizzate dalle procedure
+
+astro.py  Implementazione di alcune funzioni di carattere astronomico (per
+          evitare dipendenze da librerie esterne)
+
+configure.py: gestione file di configurazione
+
+domecomm.py: implementazione del protocollo di comunicazione con la cupola.
+             Può essere usato come porcedura per l'invio manuale di comandi
+             alla cupola (help: python domecomm.py -h)
+
+interpolator.py: funzioni di interpolazione per modello geometrico
+                 cupola-telescopio
+
+telecomm.py: implementazione del protocollo LX200 per comunicazione con il
+             telescopio. Può essere usato come porcedura per l'invio manuale
+             di comandi al telescopio (help: python telecomm.py -h)
+
+widgets.py: definizione widget utilizzati per la GUI
+
+
+ALTRI FILES FORNITI
+
+./icons/*.gif   Icone utilizzate dalla GUI
+
+./tables/dometab_e.p  Tabelle di interpolazione per modello geometrico
+./tables/dometab_w.p  cupola-telescopio
