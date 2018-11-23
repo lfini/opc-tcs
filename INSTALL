@@ -6,3 +6,5 @@ una directory dedicata.
 le procedure si possono lanciare come nell'esempio:
 
        python  <percorso...>/cupola.py
+
+TBD: verificare opportunità di creare un "installer"
