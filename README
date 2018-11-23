@@ -1,9 +1,12 @@
-
 Procedure python per la gestione dell'osservatorio OPC
 
 Luca Fini (luca.fini@gmail.com) - agosto 2018
 
 Codice previsto per python 3.x
+
+NOTA: il codice sorgente è ospitato su: github.com/lfini/opc-tcs
+
+----------------------------------------------------------------
 
 PROCEDURA PRINCIPALE
 
@@ -30,6 +33,7 @@ simulator.py: simulatore dei server della cupola e del telescopio (parziale).
 timetest.py: Misura tempi di risposta tipici del server del telescopio 
 astrotest.py: Verifica prestazioni delle procedure in astro.py (vedi sotto)
 
+telescope.py: scheletro di GUI per controllo telescopio, ad inizio di sviluppo
 
 LIBRERIE
 
