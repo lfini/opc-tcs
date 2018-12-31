@@ -16,7 +16,7 @@ import socket
 import time
 import configure as conf
 
-from astro import OPC, float2ums
+from astro import OPC, float2ums, loc_st_now
 
 __version__ = "1.1"
 __date__ = "Novembre 2018"
@@ -25,12 +25,17 @@ __author__ = "Luca Fini"
                                    # Comandi definiti
                                    # Comandi di preset
 SET_DATE = ":SC%02d/%02d/%02d#"    # Set data
-SET_DE = ":Sd%s%02d*%02d:%02d#"    # Set declinatione target (dd,mm,ss)
-SET_LAT = ":St%s%02d*%02d#"        # Set site latitude (dd, mm)
-SET_LON = ":Sg%03d*%02d#"          # Set site longitude (ddd, mm)
-SET_LTIME = ":SL%02d:%02d:%02d#"   # Set local time: hh, mm, ss
-SET_RA = ":Sr%02d:%02d:%02d#"      # Set target right ascension (hh,mm,ss)
+SET_DE = ":Sd%s%02d*%02d:%02d#"    # Set declinazione target (dd,mm,ss)
+SET_LAT = ":St%s%02d*%02d#"        # Set latitudine del luogo (dd, mm)
+SET_LON = ":Sg%03d*%02d#"          # Set longitudine del luogo (ddd, mm)
+SET_LTIME = ":SL%02d:%02d:%02d#"   # Set ora locale: hh, mm, ss
+SET_RA = ":Sr%02d:%02d:%02d#"      # Set ascensione retta dell'oggetto target (hh,mm,ss)
+SET_TRATE = "ST%.4f#"              # Set freq. di tracking
+SET_TSID = ":SS%02d:%02d:%02d#"    # Set tempo sidereo: hh, mm, ss
 SET_UOFF = ":SG%s%04.1f#"          # Set UTC offset (UTC = LocalTime+Offset)
+
+TRACK_ON = ":Te#"                  # Abilita tracking
+TRACK_OFF = ":Td#"                 # Disabilita tracking
 
                                    # Comandi di movimento
 MOVE_DIR = ":M%s#"                 # Muovi ad est/ovest/nord/sud
@@ -50,6 +55,8 @@ GET_ALT = ":GA#"           # Get telescope altitude
 GET_CUR_DE = ":GD#"        # Get current declination
 GET_CUR_RA = ":GR#"        # Get current right ascension
 GET_DATE = ":GC#"          # Get date
+GET_HLIM = ":Gh"           # Get horizont limit
+GET_OVER = ":Go"           # Get overhead limit
 GET_IDENT = ":GVP#"        # Get telescope identification
 GET_LTIME = ":GL#"         # Get local time from telescope
 GET_LON = ":Gg#"           # Get telescope longitude
@@ -66,7 +73,8 @@ GET_STAT = ":GU#"          # Get global status
                            # S: GPS PPS synced
 GET_TAR_DE = ":Gd#"        # Get target declination
 GET_TAR_RA = ":Gr#"        # Get target right ascension
-GET_UOFF = ":GG#"           # Get UTC offset time
+GET_UOFF = ":GG#"          # Get UTC offset time
+
 
 DDMMSS_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})[':](\\d{2})")
 DDMM_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})")
@@ -177,6 +185,10 @@ class TeleCommunicator:
             raise ValueError
         return ret
 
+    def set_trate(self, rate):
+        "Set tracking rate"
+        return self.send_command(SET_TRATE%rate, False)
+
     def set_lat(self, deg):
         "Set local latitude in degrees"
         if deg >= 0:
@@ -200,6 +212,11 @@ class TeleCommunicator:
         ttt = time.localtime(tt0)
         cmd = SET_DATE%(ttt[1], ttt[2], ttt[0]-2000)
         return self.send_command(cmd, 1)
+
+    def set_tsid(self):
+        "set tempo sidereo da clock PC"
+        tsidh = loc_st_now()
+        return self.send_command(SET_TSID%float2ums(tsidh), False)
 
     def set_time(self):
         "Set tempo telescopio da clock del PC"
@@ -230,6 +247,12 @@ class TeleCommunicator:
         if dir_c not in "ewns":
             return None
         return self.send_command(MOVE_DIR%dir_c, False)
+
+    def set_rate(self, rate):
+        "set rate: 0-9/GCMS"
+        if rate in "GCMS0123456789":
+            return self.send_command(SET_TRATE+rate[0], False)
+        return None
 
     def stop_dir(self, to_dir=None):
         "Ferma movimento (se to_dir=e,w,n,s ferma il movimento relativo)"
@@ -273,6 +296,16 @@ class TeleCommunicator:
     def get_date(self):
         "Get date"
         ret = self.send_command(GET_DATE, True)
+        return ret
+
+    def get_hlim(self):
+        "Get horizon limit"
+        ret = self.send_command(GET_HLIM, True)
+        return ret
+
+    def get_olim(self):
+        "Get overhead limit"
+        ret = self.send_command(GET_OVER, True)
         return ret
 
     def get_lon(self):
@@ -335,6 +368,14 @@ class TeleCommunicator:
             value = None
         return value
 
+    def track_on(self):
+        "Abilita tracking"
+        return self.send_command(TRACK_ON, True)
+
+    def track_off(self):
+        "Disabilita tracking"
+        return self.send_command(TRACK_OFF, True)
+
     def slew(self):
         "Send Slew to target command"
         return self.send_command(SLEW, True)
@@ -388,6 +429,12 @@ def getint(args):
         return int(args[0])
     return None
 
+def getfloat(args):
+    "Riporta il primo argomento come float"
+    if args:
+        return float(args[0])
+    return None
+
 def getword(args):
     "Riporta il primo argomento come stringa"
     if args:
@@ -402,53 +449,59 @@ class Executor:
     "Esecuzione comandi interattivi"
     def __init__(self, config, verbose):
         dcom = TeleCommunicator(config["tel_ip"], config["tel_port"], verbose=verbose)
-        aux_pulse_e = lambda x: dcom.pulse_guide("e", x)
-        aux_pulse_w = lambda x: dcom.pulse_guide("w", x)
-        aux_pulse_n = lambda x: dcom.pulse_guide("n", x)
-        aux_pulse_s = lambda x: dcom.pulse_guide("s", x)
 #                    codice   descrizione                funzione      convers.argom.
         self.lxcmd = {"GA": ("Leggi altezza telescopio", dcom.get_alt, noargs),
+                      "GC": ("Leggi data", dcom.get_date, noargs), 
                       "GD": ("Leggi declinazione telescopio", dcom.get_current_de, noargs),
                       "Gd": ("Leggi declinazione oggetto", dcom.get_target_de, noargs),
                       "GG": ("Leggi offset UTC", dcom.get_utcoffset, noargs),
                       "Gg": ("Leggi longitudine", dcom.get_lon, noargs),
+                      "Gh": ("Leggi limite orizzonte", dcom.get_hlim, noargs),
                       "GL": ("Leggi tempo locale da telescopio", dcom.get_ltime, noargs),
                       "Gm": ("Leggi lato braccio", dcom.get_pside, noargs),
-                      "Gt": ("Leggi latitudine", dcom.get_lat, noargs),
-                      "GT": ("Leggi tracking rate", dcom.get_trate, noargs),
-                      "GW": ("Leggi stato montatura", dcom.get_mstat, noargs),
-                      "GS": ("Leggi tempo sidereo", dcom.get_tsid, noargs),
-                      "GU": ("Leggi stato globale", dcom.get_status, noargs),
+                      "Go": ("Leggi limite overhead", dcom.get_olim, noargs),
                       "GR": ("Leggi asc. retta telescopio", dcom.get_current_ra, noargs),
                       "Gr": ("Leggi asc. retta oggetto", dcom.get_target_ra, noargs),
+                      "GS": ("Leggi tempo sidereo", dcom.get_tsid, noargs),
+                      "GT": ("Leggi tracking rate", dcom.get_trate, noargs),
+                      "Gt": ("Leggi latitudine", dcom.get_lat, noargs),
+                      "GW": ("Leggi stato montatura", dcom.get_mstat, noargs),
+                      "GU": ("Leggi stato globale", dcom.get_status, noargs),
                       "GVP": ("Leggi identificazione telescopio", dcom.get_ident, noargs),
                       "GZ": ("Leggi azimuth telescopio", dcom.get_az, noargs),
                       "hP": ("\"Park\" telescopio", dcom.park, noargs),
                       "hR": ("\"Unpark\" telescopio", dcom.unpark, noargs),
-                      "Mge": ("\"pulse guide\" in direzione est", aux_pulse_e, getint),
-                      "Mgw": ("\"pulse guide\" in direzione ovest", aux_pulse_w, getint),
-                      "Mgn": ("\"pulse guide\" in direzione nord", aux_pulse_n, getint),
-                      "Mgs": ("\"pulse guide\" in direzione sud", aux_pulse_s, getint),
+                      "Mge": ("\"pulse guide\" in direzione est", lambda x: dcom.pulse_guide("e", x), getint),
+                      "Mgw": ("\"pulse guide\" in direzione ovest", lambda x: dcom.pulse_guide("w", x), getint),
+                      "Mgn": ("\"pulse guide\" in direzione nord", lambda x: dcom.pulse_guide("n", x), getint),
+                      "Mgs": ("\"pulse guide\" in direzione sud", lambda x: dcom.pulse_guide("s", x), getint),
                       "Me": ("Muovi in direzione est", lambda x="e": dcom.move_dir(x), noargs),
                       "Mw": ("Muovi in direzione ovest", lambda x="w": dcom.move_dir(x), noargs),
                       "Mn": ("Muovi in direzione nord", lambda x="n": dcom.move_dir(x), noargs),
                       "Ms": ("Muovi in direzione sud", lambda x="s": dcom.move_dir(x), noargs),
-                      "MS": ("\"Slew\" all'oggetto", dcom.slew, noargs),
+                      "MS": ("Slew all'oggetto", dcom.slew, noargs),
                       "Q":  ("Stop movimento", dcom.stop_dir, noargs),
                       "Qe": ("Stop mov. in direzione est", lambda x="e": dcom.stop_dir(x), noargs),
                       "Qw": ("Stop mov. in direzione ovest", lambda x="w": dcom.stop_dir(x), noargs),
                       "Qn": ("Stop mov. in direzione nord", lambda x="n": dcom.stop_dir(x), noargs),
                       "Qs": ("Stop mov. in direzione sud", lambda x="s": dcom.stop_dir(x), noargs),
-                      "Sd": ("Imposta declinazione oggetto (dd,mm,ss)", dcom.set_de, getddmmss),
+                      "R": ("Imposta rate 0-9GCMS", dcom.set_rate, getword),
                       "SC": ("Imposta data", dcom.set_date, noargs),
-                      "St": ("Imposta latitudine (dd,mm)", dcom.set_lat, getddmmss),
-                      "Sg": ("Imposta longitudine (ddd,mm)", dcom.set_lon, getddmmss),
-                      "Sr": ("Imposta asc. retta oggetto (hh,mm,ss)", dcom.set_ra, getddmmss),
-                      "ST": ("Imposta tempo locale e UTC offset da PC", dcom.set_time, noargs),
+                      "Sd": ("Imposta declinazione oggetto (dd mm ss)", dcom.set_de, getddmmss),
+#                     "Sh": ("Imposta limite orizzonte", ..., getdd
+                      "Sg": ("Imposta longitudine (ddd mm)", dcom.set_lon, getddmmss),
+#                     "So": ("Imposta limite overhead", ..., getdd
+                      "Sr": ("Imposta asc. retta oggetto (hh mm ss)", dcom.set_ra, getddmmss),
+                      "SS": ("Imposta tempo sidereo da clock PC", dcom.set_tsid, noargs),
+                      "ST": ("Imposta tracking rate", dcom.set_trate, getfloat),
+                      "St": ("Imposta latitudine (dd mm)", dcom.set_lat, getddmmss),
+                      "Td": ("Disabilita tracking", dcom.track_off, noargs),
+                      "Te": ("Abilita tracking", dcom.track_on, noargs),
                      }
         self.hkcmd = {"in": ("Inizializzazione telescopio per OPC", dcom.opc_init, noargs),
                       "q":  ("Termina procedura", sys.exit, noargs),
                       "s":  ("Cerca comando", self.search, getword),
+                      "st":  ("Imposta tempo locale e UTC offset da PC", dcom.set_time, noargs),
                       "t":  ("invia stringa (:,# possono essere omessi)", dcom.text_cmd, getword),
                      }
 
@@ -496,6 +549,44 @@ class Executor:
         print("\nComandi aggiuntivi:")
         for key in keys:
             print("   %3s: %s"%(key, self.hkcmd[key][0]))
+
+TODO = """
+Tracking rate commands
+Set sidereal rate RA 	:STdd.ddddd# 	Reply: 0 or 1
+Get sidereal rate RA 	:GT# 	Reply: dd.ddddd#
+Track sidereal rate RA (default)	:TQ# 	Reply: [none]
+Track sidereal rate reset 	:TR# 	Reply: [none]
+Track rate increase 0.02Hz 	:T+# 	Reply: [none]
+Track rate decrease 0.02Hz 	:T-# 	Reply: [none]
+Track solar rate RA 	:TS# 	Reply: [none]
+Track lunar rate RA 	:TL# 	Reply: [none]
+Track king rate RA 	:TK# 	Reply: [none]
+Tracking enable 	:Te# 	Reply: 0 or 1
+Tracking disable 	:Td# 	Reply: 0 or 1
+Refraction rate tracking 	:Tr# 	Reply: 0 or 1
+No refraction rate tracking 	:Tn# 	Reply: 0 or 1
+
+Sync. with current target RA/Dec	:CS#	Reply: [none]
+Sync. with current target RA/Dec	:CM#	Reply: N/A#
+Note: Sync's that are not allowed fail silently. This can happen due to slews, parking, or exceeded limits.
+
+Library commands
+Select catalog no. 	:Lonn# 	Reply: 0 or 1
+Move Back in catalog 	:LB# 	Reply: [none]
+Move to Next in catalog 	:LN# 	Reply: [none]
+Move to catalog item no.	:LCnnnn# 	Reply: [none]
+Move to catalog name rec.	:L$# 	Reply: 1
+Get catalog item id. 	:LI# 	Reply: name,type#
+Read catalog item info.
+(also moves forward) 	:LR# 	Reply: name,type,RA,De#
+
+Get statUs returns:
+N-Not slewing, H-At Home position,
+P-Parked, p-Not parked, F-Park Failed,
+I-park In progress, R-PEC Recorded
+G-Guiding in progress, S-GPS PPS Synced 	:GU# 	Reply: sss#
+"""
+
 
 def main():
     "Invio comandi da console e test"
