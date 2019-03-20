@@ -28,9 +28,9 @@ FAST_REFRESH_TIME = 800    # Millisecondi
 
 class OnStatus(tk.Frame):
     "Widget per visualizzazione dello stato del telescopio"
-    def __init__(self, parent, config):
+    def __init__(self, parent):
         self.parent = parent
-        self.config = config
+        self.tel = parent.tel
         tk.Frame.__init__(self, parent, border=1, relief=tk.GROOVE, padx=3, pady=3)
         time_fr = tk.Frame(self)
         self.date = Field(time_fr)
@@ -40,7 +40,6 @@ class OnStatus(tk.Frame):
         self.sd_time = Coord(time_fr, label="Tempo sidereo apparente locale ", label_side=tk.E)
         self.sd_time.pack(side=tk.LEFT)
         time_fr.pack()
-        self.tel = TeleCommunicator(config["tel_ip"], config["tel_port"])
         self.connected = False
         self.ltime = ""
         self.stime = ""
@@ -52,14 +51,18 @@ class OnStatus(tk.Frame):
 
     def _clear_on_disconnect(self):
         "Azzera campi in caso di disconnessione"
-        self.connected = True
+        self.connected = False
 
     def updatew(self):
         "Aggiornamento campi del widget"
         
         sdtime = self.tel.get_tsid()
-        utime = self.tel.get_ltime()
-        ldate = self.tel.get_date()
+        utime = None
+        ldate = None
+        if sdtime:
+            utime = self.tel.get_ltime()
+        if utime:
+            ldate = self.tel.get_date()
         if not (utime and sdtime and ldate):
             self._clear_on_disconnect()
         else:
@@ -68,7 +71,6 @@ class OnStatus(tk.Frame):
             self.ut_time.set(utime)
             self.sd_time.set(sdtime)
             self.date.set(ldate)
-        self.after(SLOW_REFRESH_TIME, self.updatew)
 
 def _fmtlatlon(lat, lon):
     "Format logntudine e latitudine (in radianti)"
@@ -95,6 +97,7 @@ class OnControl(tk.Frame):
     def __init__(self, parent, config):
         self.parent = parent
         self.config = config
+        self.tel = parent.tel
         tk.Frame.__init__(self, parent, border=1, relief=tk.GROOVE, padx=3, pady=3)
         tk.Label(self, text="Data/ora:").pack(anchor=tk.W)
         self.btime = CButton(self, "btime", color="indianred", text="Set",
@@ -106,7 +109,6 @@ class OnControl(tk.Frame):
         self.bll = CButton(self, "bll", color="indianred", text="Set",
                            label=tlabel, label_side=tk.E, command=self.set_tel)
         self.bll.pack(anchor=tk.W)
-        self.tel = TeleCommunicator(config["tel_ip"], config["tel_port"])
         self.updatew()
 
     def set_tel(self, bname):
@@ -120,6 +122,18 @@ class OnControl(tk.Frame):
         now = time.strftime("%x %X %z")+" (LST: %2.2d:%2.2d:%2.2d)"%astro.float2ums(astro.loc_st_now())
         self.btime.set_label(now)
         self.after(FAST_REFRESH_TIME, self.updatew)
+
+class TCS(tk.Frame):
+    "Pannello per controllo telescopio"
+    def __init__(self, parent, config):
+        self.parent = parent
+        self.config = config
+        tk.Frame.__init__(self, parent, border=1, relief=tk.GROOVE, padx=3, pady=3)
+        self.tel = TeleCommunicator(config["tel_ip"], config["tel_port"])
+        self.status = OnStatus(self)
+        self.status.pack(side=tk.LEFT)
+        self.control = OnControl(self, config)
+        self.control.pack(side=tk.LEFT)
 
 def main():
     "funzione main"
@@ -146,7 +160,7 @@ def main():
     elif not config:
         wdg1 = WarningMsg(root, conf.NO_CONFIG)
     else:
-        wdg1 = OnControl(root, config)
+        wdg1 = TCS(root, config)
     wdg1.pack()
     root.mainloop()
 
