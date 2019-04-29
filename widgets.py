@@ -439,12 +439,12 @@ class FrameTitle(tk.Frame):
 class Field(_LabelFrame):
     "Widget per display di stringa generica"
     def __init__(self, parent, bg="black", fg="lightgreen",
-                 font="TkDefaultFont", width=10,
+                 font="TkDefaultFont", width=10, text="",
                  label=None, label_side=tk.W, label_font=H4_FONT,
                  expand=None, fill=None, **kw):
         _LabelFrame.__init__(self, parent, label=label,
                              label_side=label_side, label_font=label_font, **kw)
-        self.add_widget(tk.Label(self, text=label, bg=bg, fg=fg, width=width,
+        self.add_widget(tk.Label(self, text=text, bg=bg, fg=fg, width=width,
                                  font=font, border=1, relief=tk.SUNKEN))
 
     def set(self, text):
@@ -518,6 +518,17 @@ class WarningMsg(tk.Frame):
 
     def _quit(self, _unused):
         self.master.quit()
+
+class HSpacer(tk.Label):
+    "Spaziatore orizzontale: se nspaces=0, riempie tutto lo spazio disponibile"
+    def __init__(self, parent, nspaces=0):
+        if nspaces:
+            spaces = " "*nspaces
+            super().__init__(parent, text=spaces)
+            self.pack(side=tk.LEFT)
+        else:
+            super().__init__(parent, text=" ")
+            self.pack(side=tk.LEFT, expand=1, fill=tk.X)
 
 def main():
     "Procedura di test"
