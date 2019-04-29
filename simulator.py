@@ -27,8 +27,8 @@ import pprint
 from domecomm import DomeCommands, StatiMovimento, DomeErrors, StatiLuce, StatiVano, StatiSync
 import astro
 
-__version__ = "1.2"
-__date__ = "Maggio 2018"
+__version__ = "1.3"
+__date__ = "Marzo 2019"
 __author__ = "Luca Fini"
 
 LINEAR = 0
@@ -406,11 +406,15 @@ class LX200(Telescope):
                     val = float(command[3:8])
                 except:
                     ret = "0"
+                    if VERBOSE:
+                        print("Errore conversione UTC offset:", command[3:8])
                 else:
                     if -12 <= val <= 12:
                         self.utc_offset = val
                         ret = "1"
                     else:
+                        if VERBOSE:
+                            print("Errore conversione UTC offset:", command[3:8])
                         ret = "0"
             elif command[:3] == b":MS":   # Comando MS - Slew to target
                 self.ra_axis.goto(self.target.ras)
@@ -418,6 +422,8 @@ class LX200(Telescope):
                 ret = "0"
             elif command[:3] == b":GA":   # Comando GA - Get telescope altitude
                 ret = self.get_current_alt()
+            elif command[:3] == b":GC":   # Comando GA - Get telescope date
+                ret = self.get_date()
             elif command[:3] == b":GD":   # Comando GD - Get scope declination
                 ret = self.get_current_de()
             elif command[:3] == b":Gd":   # Comando Gd - Get target declination
