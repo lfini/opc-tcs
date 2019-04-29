@@ -1,6 +1,8 @@
 """
 Funzioni di comunicazione per controllo telescopio OPC
 
+Implementa i codici LX200 specifici per OnStep
+
 Uso interattivo:
 
       python telcomm.py [-d] [-v]
@@ -18,8 +20,8 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.1"
-__date__ = "Novembre 2018"
+__version__ = "1.2"
+__date__ = "Aprile 2019"
 __author__ = "Luca Fini"
 
                                 # Comandi definiti
@@ -65,11 +67,21 @@ UNPARK = ":hR#"                 # Unpark telescope
 
 SYNC_RADEC = ":CS#"        # Sync with current RA/DEC (no reply)
 
+#Comandi set/get antibacklash
+
+SET_ANTIB_DEC = "$BD%03d#"   # Set Dec Antibacklash
+SET_ANTIB_RA = "$BR%03d#"    # Set RA Antibacklash
+
+GET_ANTIB_DEC = "$BD#"       # Get Dec Antibacklash
+GET_ANTIB_RA = "$BR#"        # Get RA Antibacklash
+
+
                            # Comandi informativi
 GET_AZ = ":GZ#"            # Get telescope azimuth
 GET_ALT = ":GA#"           # Get telescope altitude
 GET_CUR_DE = ":GD#"        # Get current declination
 GET_CUR_RA = ":GR#"        # Get current right ascension
+GET_DB = ":D#"             # Get distance bar
 GET_DATE = ":GC#"          # Get date
 GET_HLIM = ":Gh"           # Get horizont limit
 GET_OVER = ":Go"           # Get overhead limit
@@ -97,6 +109,28 @@ GET_TAR_RA = ":Gr#"        # Get target right ascension
 GET_TFMT = ":Gc#"          # Get current time format (ret: 24#)
 GET_UOFF = ":GG#"          # Get UTC offset time
 
+# Comandi fuocheggatore.
+# Nota: gli stessi commandi valgono per il
+#       fuocheggiatore 1 se iniziano per "F"
+#       e il fuocheggiatore 2 se iniziano per "f"
+
+FOC_SELECT = "%sA%s#"   # Seleziona fuocheggiatore (1/2)
+
+FOC_MOVEIN = "%s+#"    # Muove fuocheggiatore verso obiettivo
+FOC_MOVEOUT = "%s-#"   # Muove fuocheggiatore via da obiettivo
+FOC_STOP = "%sQ#"      # Stop movimento fuocheggiatore
+FOC_ZERO = "%sZ#"      # Muovi in posizione zero
+FOC_FAST = "%sF#"      # Imposta movimento veloce
+FOC_SETR = "%sR%04d#"  # Imposta posizione relativa (micron)
+FOC_SLOW = "%sS#"      # Imposta movimento lento
+FOC_SETA = "%sS%04d#"  # Imposta posizione assoluta (micron)
+FOC_RATE = "%s%1d"     # Imposta velocità (1,2,3,4)
+
+GET_FOC_ACT = ":%sA#"  # Fuocheggiatore attivo (ret: 0/1)
+GET_FOC_POS = "%sG#"   # Leggi posizione corrente (+-ddd)
+GET_FOC_MIN = "%sI#"   # Leggi posizione minima
+GET_FOC_MAX = "%sM#"   # Leggi posizione minima
+GET_FOC_STAT = "%sT#"  # Leggi stato corrente (M: moving, S: stop)
 
 CODICI_STATO = """
     n: non in tracking    N: Non in slewing
@@ -105,7 +139,7 @@ CODICI_STATO = """
     H: in posizione home
     S: PPS sincronizzato
     G: Modo guida attivo
-    f: Errore movimenjto asse
+    f: Errore movimento asse
     r: PEC refr abilitato    s: su asse singolo (solo equatoriale)
     t: on-track abilitato    s: su asse singolo (solo equatoriale)
     w: in posizione home     u: Pausa in pos. home abilitata
@@ -134,35 +168,48 @@ CODICI_RISPOSTA = """
     6: oggetto sopra limite zenith
 """
 
-CODICI_ONSTEP = """
-0x: Modello allineamento
-  00:  ax1Cor
-  01:  ax2Cor
-  02:  altCor
-  03:  azmCor
-  04:  doCor
-  05:  pdCor
-  06:  ffCor
-  07:  dfCor
-  08:  tfCor
-  09:  Number of stars, reset to first star
-  0A:  Star  #n HA
-  0B:  Star  #n Dec
-  0C:  Mount #n HA
-  0D:  Mount #n Dec
-  0E:  Mount PierSide (and increment n)
+CODICI_TABELLE_ONSTEP = """
+0: Modello di allineamento       4: Encoder
+8: Data e ora                    9: Varie
+E: Parametri configurazione      F: Debug
+G: Ausiliari (??)                U: Stato motori step
+"""
 
+CODICI_ONSTEP_0X = """
+0x: Modello allineamento
+  00:  ax1Cor  (x 3600.)
+  01:  ax2Cor  (x 3600.)
+  02:  altCor  (x 3600.)
+  03:  azmCor  (x 3600.)
+  04:  doCor   (x 3600.)
+  05:  pdCor   (x 3600.)
+  06:  ffCor   (x 3600.)
+  07:  dfCor   (x 3600.)
+  08:  tfCor   (x 3600.)
+  09:  Number of stars, reset to first star
+  0A:  Star  #n HA   (hms)
+  0B:  Star  #n Dec  (dms)
+  0C:  Mount #n HA   (hms)
+  0D:  Mount #n Dec  (dms)
+  0E:  Mount PierSide (and increment n)
+"""
+
+CODICI_ONSTEP_4X = """
 4x: Encoder
-  40:  Get formatted absolute Axis1 angle
-  41:  Get formatted absolute Axis2 angle 
+  40:  Get absolute Axis1 angle (dms)
+  41:  Get absolute Axis2 angle (dms)
   42:  Get absolute Axis1 angle in degrees
   43:  Get absolute Axis2 angle in degrees
   49:  Get current tracking rate
+"""
 
+CODICI_ONSTEP_8X = """
 8x: Data e ora
   80:  UTC time
   81:  UTC date
+"""
 
+CODICI_ONSTEP_9X = """
 9x: Varie
   90:  pulse-guide rate
   91:  pec analog value
@@ -172,19 +219,23 @@ CODICI_ONSTEP = """
   95:  autoMeridianFlip
   96:  preferred pier side  (E, W, N:none)
   97:  slew speed
-  98:  Rotatror mode (D: derotate, R:rotate, N:no rotator)
+  98:  Rotator mode (D: derotate, R:rotate, N:no rotator)
   9A:  temperature in deg. C
   9B:  pressure in mb
   9C:  relative humidity in %
   9D:  altitude in meters
   9E:  dew point in deg. C
   9F:  internal MCU temperature in deg. C
+"""
 
+CODICI_ONSTEP_UX = """
 Ux: Stato motori step
   U1: ST(Stand Still),  OA(Open Load A), OB(Open Load B), GA(Short to Ground A),
   U2: GB(Short to Ground B), OT(Overtemperature Shutdown 150C),
       PW(Overtemperature Pre-warning 120C)
+"""
 
+CODICI_ONSTEP_EX = """
 Ex: Parametri configurazione
   E1: MaxRate
   E2: DegreesForAcceleration
@@ -199,7 +250,9 @@ Ex: Parametri configurazione
   EB: UnderPoleLimit
   EC: Dec
   ED: MaxDec
+"""
 
+CODICI_ONSTEP_FX = """
 Fn: Debug
   F0:  Debug0, true vs. target RA position
   F1:  Debug1, true vs. target Dec position
@@ -213,7 +266,8 @@ Fn: Debug
   FA:  DebugA, Workload
   FB:  DebugB, trackingTimerRateAxis1
   FE:  DebugE, equatorial coordinates degrees (no division by 15)
-
+"""
+CODICI_ONSTEP_GX = """
   G0:   valueAux0/2.55
   G1:   valueAux1/2.55
   G2:   valueAux2/2.55
@@ -408,7 +462,7 @@ class TeleCommunicator:
         return ret
 
     def sync_radec(self):
-        "Sync con valore corrente asc.retta e decl."
+        "Sync con valore corrente asc.retta e decl. [No risp.]"
         return self.send_command(SYNC_RADEC, False)
 
     def move_target(self):
@@ -487,6 +541,20 @@ class TeleCommunicator:
         ret = self.send_command(GET_ALT, True)
         return ddmmss_decode(ret, with_sign=True)
 
+    def get_antib_dec(self):
+        "Leggi valore antibacklash declinazione (steps/arcsec)"
+        ret = self.send_command(GET_ANTIB_DEC, True)
+        if ret:
+            return int(ret)
+        return None
+
+    def get_antib_ra(self):
+        "Leggi valore antibacklash ascensione retta (steps/arcsec)"
+        ret = self.send_command(GET_ANTIB_RA, True)
+        if ret:
+            return int(ret)
+        return None
+
     def get_az(self):
         "Leggi azimuth telescopio (gradi)"
         ret = self.send_command(GET_AZ, True)
@@ -504,8 +572,45 @@ class TeleCommunicator:
 
     def get_date(self):
         "Leggi data impostata al telescopio"
-        ret = self.send_command(GET_DATE, True)
-        return ret
+        return self.send_command(GET_DATE, True)
+
+    def get_db(self):
+        "Legge stato movimento (riporta '0x7f' se in moto)"
+        return self.send_command(GET_DB, True)
+
+    def get_foc_act(self, focuser="F"):
+        "Fuocheggiatore attivo?"
+        cmd = GET_FOC_ACT%focuser
+        return self.send_command(cmd, True)
+
+    def get_foc_min(self, focuser="F"):
+        "Legge posizione minima fuocheggiatore 1/2 (micron)"
+        cmd = GET_FOC_MIN%focuser
+        ret = self.send_command(cmd, True)
+        if ret:
+            return int(ret)
+        return None
+
+    def get_foc_max(self, focuser="F"):
+        "Legge posizione massima fuocheggiatore 1/2 (micron)"
+        cmd = GET_FOC_MAX%focuser
+        ret = self.send_command(cmd, True)
+        if ret:
+            return int(ret)
+        return None
+
+    def get_foc_pos(self, focuser="F"):
+        "Legge posizione corrente fuocheggiatore 1/2 (micron)"
+        cmd = GET_FOC_POS%focuser
+        ret = self.send_command(cmd, True)
+        if ret:
+            return int(ret)
+        return None
+
+    def get_foc_stat(self, focuser="F"):
+        "Legge stato fuocheggiatore 1/2 (M: in movimento, S: fermo)"
+        cmd = GET_FOC_STAT%focuser
+        return self.send_command(cmd, True)
 
     def get_hlim(self):
         "Leggi limite orizzonte (gradi)"
@@ -575,6 +680,7 @@ class TeleCommunicator:
 
     def get_status(self):
         "Leggi stato telescopio. Per tabella stati: gst?"
+        return self.send_command(GET_STAT, True)
 
     def get_target_de(self):
         "Leggi declinazione oggetto (gradi)"
@@ -608,6 +714,70 @@ class TeleCommunicator:
         except ValueError:
             value = None
         return value
+
+    def foc_sel(self, num, focuser="F"):
+        "seleziona fuocheggiatore 1/2"
+        if num not in (1, 2):
+            return None
+        cmd = FOC_SELECT%(focuser, num)
+        return self.send_command(cmd, False)
+
+    def move_foc_in(self, focuser="F"):
+        "Muove fuocheggiatore 1/2 verso obiettivo"
+        cmd = FOC_MOVEIN%focuser
+        return self.send_command(cmd, False)
+
+    def move_foc_out(self, focuser="F"):
+        "Muove fuocheggiatore 1/2 via da obiettivo"
+        cmd = FOC_MOVEOUT%focuser
+        return self.send_command(cmd, False)
+
+    def stop_foc(self, focuser="F"):
+        "Ferma movimento fuocheggiatore 1/2"
+        cmd = FOC_STOP%focuser
+        return self.send_command(cmd, False)
+
+    def move_foc_zero(self, focuser="F"):
+        "Muove fuocheggiatore 1/2 in posizione zero"
+        cmd = FOC_ZERO%focuser
+        return self.send_command(cmd, False)
+
+    def set_foc_fast(self, focuser="F"):
+        "Imposta velocità alta fuocheggiatore 1/2"
+        cmd = FOC_FAST%focuser
+        return self.send_command(cmd, False)
+
+    def set_foc_slow(self, focuser="F"):
+        "Imposta velocità bassa fuocheggiatore 1/2"
+        cmd = FOC_SLOW%focuser
+        return self.send_command(cmd, False)
+
+    def set_foc_speed(self, rate, focuser="F"):
+        "Imposta velocità (1,2,3,4) fuocheggiatore 1/2"
+        if rate > 4:
+            rate = 4
+        elif rate < 1:
+            rate = 1
+        cmd = FOC_RATE%(focuser, rate)
+        return self.send_command(cmd, False)
+
+    def set_foc_rel(self, pos, focuser="F"):
+        "Imposta posizione relativa fuocheggiatore 1/2 (micron)"
+        cmd = FOC_SETR%(focuser, pos)
+        return self.send_command(cmd, False)
+
+    def set_foc_abs(self, pos, focuser="F"):
+        "Imposta posizione assoulta fuocheggiatore 1/2 (micron)"
+        cmd = FOC_SETA%(focuser, pos)
+        return self.send_command(cmd, False)
+
+    def set_antib_dec(self, stpar):
+        "Imposta valore anti backlash declinazione (steps per arcsec)"
+        return self.send_command(SET_ANTIB_DEC%stpar, True)
+
+    def set_antib_ra(self, stpar):
+        "Imposta valore anti backlash ascensione retta (steps per arcsec)"
+        return self.send_command(SET_ANTIB_RA%stpar, True)
 
     def track_on(self):
         "Abilita tracking"
@@ -741,11 +911,28 @@ def myexit():
     "Termina programma"
     sys.exit()
 
-def gos_info():
+def gos_info(cset=""):
     "Mostra  tabella dei codici per interrogazioni valori OnStep"
-    print("Tabella codici di interrogazione per comando gos")
-    print()
-    print(CODICI_ONSTEP)
+    cset = cset.upper()
+    if cset == "0":
+        print(CODICI_ONSTEP_0X)
+    elif cset == "4":
+        print(CODICI_ONSTEP_4X)
+    elif cset == "8":
+        print(CODICI_ONSTEP_8X)
+    elif cset == "9":
+        print(CODICI_ONSTEP_9X)
+    elif cset == "E":
+        print(CODICI_ONSTEP_EX)
+    elif cset == "F":
+        print(CODICI_ONSTEP_FX)
+    elif cset == "G":
+        print(CODICI_ONSTEP_GX)
+    elif cset == "U":
+        print(CODICI_ONSTEP_UX)
+    else:
+        print("Seleziona tabella specifica:")
+        print(CODICI_TABELLE_ONSTEP)
     return ""
 
 def gst_info():
@@ -767,7 +954,39 @@ class Executor:
     def __init__(self, config, verbose):
         dcom = TeleCommunicator(config["tel_ip"], config["tel_port"], verbose=verbose)
 #                    codice   funzione      convers.argom.
-        self.lxcmd = {"gat": (dcom.get_alt, noargs),
+        self.lxcmd = {"f1+": (lambda: dcom.move_foc_in(focuser="F"), noargs),
+                      "f2+": (lambda: dcom.move_foc_in(focuser="f"), noargs),
+                      "f1-": (lambda: dcom.move_foc_out(focuser="F"), noargs),
+                      "f2-": (lambda: dcom.move_foc_out(focuser="f"), noargs),
+                      "f1a": (lambda: dcom.get_foc_act(focuser="F"), noargs),
+                      "f2a": (lambda: dcom.get_foc_act(focuser="f"), noargs),
+                      "f1b": (lambda x: dcom.set_foc_abs(x, focuser="F"), getint),
+                      "f2b": (lambda x: dcom.set_foc_abs(x, focuser="f"), getint),
+                      "f1f": (lambda: dcom.set_foc_fast(focuser="F"), noargs),
+                      "f2f": (lambda: dcom.set_foc_fast(focuser="f"), noargs),
+                      "f1i": (lambda: dcom.get_foc_min(focuser="F"), noargs),
+                      "f2i": (lambda: dcom.get_foc_min(focuser="f"), noargs),
+                      "f1l": (lambda: dcom.set_foc_slow(focuser="F"), noargs),
+                      "f2l": (lambda: dcom.set_foc_slow(focuser="f"), noargs),
+                      "f1m": (lambda: dcom.get_foc_max(focuser="F"), noargs),
+                      "f2m": (lambda: dcom.get_foc_max(focuser="f"), noargs),
+                      "f1p": (lambda: dcom.get_foc_pos(focuser="F"), noargs),
+                      "f2p": (lambda: dcom.get_foc_pos(focuser="f"), noargs),
+                      "f1q": (lambda: dcom.stop_foc(focuser="F"), noargs),
+                      "f2q": (lambda: dcom.stop_foc(focuser="f"), noargs),
+                      "f1r": (lambda x: dcom.set_foc_rel(x, focuser="F"), getint),
+                      "f2r": (lambda x: dcom.set_foc_rel(x, focuser="f"), getint),
+                      "f1s": (lambda x: dcom.foc_sel(x, focuser="F"), getint),
+                      "f2s": (lambda x: dcom.foc_sel(x, focuser="f"), getint),
+                      "f1t": (lambda: dcom.get_foc_stat(focuser="F"), noargs),
+                      "f2t": (lambda: dcom.get_foc_stat(focuser="f"), noargs),
+                      "f1v": (lambda x: dcom.set_foc_speed(x, focuser="F"), getint),
+                      "f2v": (lambda x: dcom.set_foc_speed(x, focuser="f"), getint),
+                      "f1z": (lambda: dcom.move_foc_zero(focuser="F"), noargs),
+                      "f2z": (lambda: dcom.move_foc_zero(focuser="f"), noargs),
+                      "gad": (dcom.get_antib_dec, noargs),
+                      "gar": (dcom.get_antib_ra, noargs),
+                      "gat": (dcom.get_alt, noargs),
                       "gda": (dcom.get_date, noargs),
                       "gdt": (dcom.get_current_de, noargs),
                       "gdo": (dcom.get_target_de, noargs),
@@ -782,6 +1001,7 @@ class Executor:
                       "glt": (dcom.get_ltime, noargs),
                       "glb": (dcom.get_pside, noargs),
                       "glh": (dcom.get_olim, noargs),
+                      "gmo": (dcom.get_db, noargs),
                       "gos": (dcom.get_onstep_value, getword),
                       "gro": (dcom.get_target_ra, noargs),
                       "grt": (dcom.get_current_ra, noargs),
@@ -803,6 +1023,8 @@ class Executor:
                       "mvn": (dcom.move_north, noargs),
                       "mvs": (dcom.move_south, noargs),
                       "mvt": (dcom.move_target, noargs),
+                      "sad": (dcom.set_antib_dec, getint),
+                      "sar": (dcom.set_antib_ra, getint),
                       "stp": (dcom.stop, noargs),
                       "ste": (dcom.stop_east, noargs),
                       "sto": (dcom.stop_west, noargs),
@@ -835,7 +1057,7 @@ class Executor:
                      }
         self.hkcmd = {"q": (myexit, noargs),
                       "?": (self.search, getword),
-                      "gos?": (gos_info, noargs),
+                      "gos?": (gos_info, getword),
                       "gst?": (gst_info, noargs),
                       "mvt?": (mvt_info, noargs),
                       "ini": (dcom.opc_init, noargs),
@@ -843,7 +1065,7 @@ class Executor:
                       "fmw": (dcom.get_firmware, noargs),
                       "ver": (dcom.set_verbose, noargs),
                      }
-    def search(self, word):
+    def search(self, word=""):
         "Cerca comando contenente la parola"
         wsc = word.lower()
         allc = self.lxcmd.copy()
