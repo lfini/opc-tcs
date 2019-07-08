@@ -175,6 +175,10 @@ def float2ums(value):
     rest = (value-idd)*60.
     mnt = int(rest)
     sec = int((rest-mnt)*60+0.5)
+    if sec>59:
+        mnt += 1
+        if mnt > 59:
+            idd += 1
     return (idd*sign, mnt, sec)
 
 TEST_TEXT = """
