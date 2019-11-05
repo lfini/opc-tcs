@@ -20,8 +20,8 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.5"
-__date__ = "Luglio 2019"
+__version__ = "1.6"
+__date__ = "Novembre 2019"
 __author__ = "Luca Fini"
 
                                 # Comandi definiti
@@ -152,47 +152,69 @@ long SiderealRate = siderealInterval/StepsPerSecondAxis1           Globals.h
      This is the time between steps for sidereal tracking
 """
 
-CODICI_STATO = """
-    n: non in tracking    N: Non in slewing
-    p: Non in park, P: in park  I: in movimento verso partk, F: park fallito
-    R: I dati PEC data sono stati registrati
-    H: in posizione home
-    S: PPS sincronizzato
-    G: Modo guida attivo
-    f: Errore movimento asse
-    r: PEC refr abilitato    s: su asse singolo (solo equatoriale)
-    t: on-track abilitato    s: su asse singolo (solo equatoriale)
-    w: in posizione home     u: Pausa in pos. home abilitata
-    z: cicalino abilitato
-    a: Inversione al meridiano automatica
-    /: Stato pec: ignora
-    ,: Stato pec: prepara disposizione 
-    ~: Stato pec: disposizione  in corso
-    ;: Stato pec: preparazione alla registrazione
-    ^: Stato pec: registrazione in corso
-    .: PEC segnala detezione indice dall'ultima chiamata
-    E: Montatura equatoriale  tedescsa
-    K: Montatura equatoriale a forcella
-    k: Montatura altaz a forcella
-    A: Montatura altaz
-    o: lato braccio ignoto  T: lato est   W: lato ovest
-    0-9: Ultimo codice di errore
-"""
+ERRCODE = "Codice di errore"
+
+CODICI_STATO = {
+    "n": "non in tracking",
+    "N": "Non in slewing",
+    "p": "Non in park, ",
+    "P": "in park  ",
+    "I": "in movimento verso park, ",
+    "F": "park fallito",
+    "R": "I dati PEC data sono stati registrati",
+    "H": "in posizione home",
+    "S": "PPS sincronizzato",
+    "G": "Modo guida attivo",
+    "f": "Errore movimento asse",
+    "r": "PEC refr abilitato    ",
+    "s": "su asse singolo (solo equatoriale)",
+    "t": "on-track abilitato    ",
+    "w": "in posizione home     ",
+    "u": "Pausa in pos. home abilitata",
+    "z": "cicalino abilitato",
+    "a": "Inversione al meridiano automatica",
+    "/": "Stato pec: ignora",
+    ",": "Stato pec: prepara disposizione ",
+    "~": "Stato pec: disposizione  in corso",
+    ";": "Stato pec: preparazione alla registrazione",
+    "^": "Stato pec: registrazione in corso",
+    ".": "PEC segnala detezione indice dall'ultima chiamata",
+    "E": "Montatura equatoriale  tedesca",
+    "K": "Montatura equatoriale a forcella",
+    "k": "Montatura altaz a forcella",
+    "A": "Montatura altaz",
+    "o": "lato braccio ignoto",
+    "T": "lato est",
+    "W": "lato ovest",
+    "0": "Nessun errore",
+    "1": ERRCODE,
+    "2": ERRCODE,
+    "3": ERRCODE,
+    "4": ERRCODE,
+    "5": ERRCODE,
+    "6": ERRCODE,
+    "7": ERRCODE,
+    "8": ERRCODE,
+    "9": ERRCODE}
 
 CODICI_RISPOSTA = """
     0: movimento possibile
     1: oggetto sotto orizzonte
     2: oggetto non selezionato
-    4: posizione irraggiungibile (non unparked)
-    5: già in movimento
-    6: oggetto sopra limite zenith
+    3: controller in standby
+    4: telescopio in park
+    5: movimento in atto
+    6: superati limiti (MaxDec, MinDec, UnderPoleLimit, MeridianLimit)
+    7: errore hardware
+    8: movimento in atto
+    9: errore non specificato
 """
 
 CODICI_TABELLE_ONSTEP = """
-0: Modello di allineamento       4: Encoder
-8: Data e ora                    9: Varie
-E: Parametri configurazione      F: Debug
-G: Ausiliari (??)                U: Stato motori step
+0: Modello di allineamento     8: Data e ora
+9: Varie                       E: Parametri configurazione
+F: Debug                       G: Ausiliari (??)
+U: Stato motori step
 """
 
 CODICI_ONSTEP_0X = """
@@ -340,6 +362,7 @@ def float_decode(the_str):
         val = float('nan')
     return val
 
+
 class TeleCommunicator:
     "Gestione comunicazione con server telescopio (LX200)"
     def __init__(self, ipadr, port, timeout=0.5, verbose=False):
@@ -425,10 +448,8 @@ class TeleCommunicator:
     def set_lat(self, deg):
         "Imposta latitudine locale (gradi)"
         if deg >= 0:
-            sgn = "+"
             cmd = SET_LATP%(float2ums(deg)[:2])
         else:
-            sgn = "-"
             deg = -deg
             cmd = SET_LATN%(float2ums(deg)[:2])
         return self.send_command(cmd, 1)
@@ -676,6 +697,13 @@ class TeleCommunicator:
         ret = self.send_command(GET_CUR_DE, True)
         return ddmmss_decode(ret, with_sign=True)
 
+    def get_current_ha(self):
+        "Leggi angolo orario telescopio (ore)"
+        ret = self.send_command(GET_CUR_RA, True)
+        rah = ddmmss_decode(ret)
+        hah = loc_st_now()-rah
+        return hah
+
     def get_current_ra(self):
         "Leggi ascensione retta telescopio (ore)"
         ret = self.send_command(GET_CUR_RA, True)
@@ -823,9 +851,18 @@ class TeleCommunicator:
         "Leggi lato di posizione del braccio (E,W, N:non.disp.)"
         return self.send_command(GET_PSIDE, True)
 
+    def gst_print(self):
+        "Stampa stato telescopio. Per tabella stati: gst?"
+        stat = self.send_command(GET_STAT, True)
+        if stat:
+            for stchr in stat:
+                print(" %s: %s"%(stchr, CODICI_STATO.get(stchr, "???")))
+        return stat
+
     def get_status(self):
         "Leggi stato telescopio. Per tabella stati: gst?"
-        return self.send_command(GET_STAT, True)
+        ret = self.send_command(GET_STAT, True)
+        return ret
 
     def get_target_de(self):
         "Leggi declinazione oggetto (gradi)"
@@ -1142,8 +1179,6 @@ def gos_info(cset=""):
     cset = cset.upper()
     if cset == "0":
         print(CODICI_ONSTEP_0X)
-    elif cset == "4":
-        print(CODICI_ONSTEP_4X)
     elif cset == "8":
         print(CODICI_ONSTEP_8X)
     elif cset == "9":
@@ -1170,7 +1205,8 @@ def gst_info():
     "Mostra  tabella dei codici di stato"
     print("Tabella codici di stato da comando gst")
     print()
-    print(CODICI_STATO)
+    for schr, text in CODICI_STATO.items():
+        print(" %s: %s"%(schr, text))
     return ""
 
 def mvt_info():
@@ -1236,7 +1272,7 @@ class Executor:
                       "gro": (dcom.get_target_ra, noargs),
                       "grt": (dcom.get_current_ra, noargs),
                       "gsm": (dcom.get_mstat, noargs),
-                      "gst": (dcom.get_status, noargs),
+                      "gst": (dcom.gst_print, noargs),
                       "gte": (dcom.get_temp, getint),
                       "gtf": (dcom.get_timefmt, noargs),
                       "gtr": (dcom.get_trate, noargs),
@@ -1312,6 +1348,7 @@ class Executor:
         self.hkcmd = {"q": (myexit, noargs),
                       "?": (self.search, getword),
                       "gos?": (gos_info, getword),
+                      "gha": (dcom.get_current_ha, noargs),
                       "gst?": (gst_info, noargs),
                       "mvt?": (mvt_info, noargs),
                       "ini": (dcom.opc_init, noargs),
