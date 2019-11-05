@@ -698,7 +698,7 @@ class TeleCommunicator:
         return ddmmss_decode(ret, with_sign=True)
 
     def get_current_ha(self):
-        "Leggi angolo orario telescopio (ore)"
+        "Calcola angolo orario telescopio (ore)"
         ret = self.send_command(GET_CUR_RA, True)
         rah = ddmmss_decode(ret)
         hah = loc_st_now()-rah
