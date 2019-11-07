@@ -501,7 +501,7 @@ class TeleCommunicator:
         return ret
 
     def _set_onstep_par(self, code, str_val):
-        "Set parametro oin st6ep generico"
+        "Set parametro on step generico"
         cmd = SET_ONSTEP_V%(code, str_val)
         return self.send_command(cmd, True)
 
@@ -565,7 +565,7 @@ class TeleCommunicator:
             return "0"
         if value not in ("E", "W", "B"):
             return "0"
-        return self._set_onstep_par("96", "%d"%value)
+        return self._set_onstep_par("96", value)
 
     def set_onstep_97(self, value):
         "Set OnStep cicalino [0: disabilita, 1: abilita]"
@@ -701,8 +701,9 @@ class TeleCommunicator:
         "Calcola angolo orario telescopio (ore)"
         ret = self.send_command(GET_CUR_RA, True)
         rah = ddmmss_decode(ret)
-        hah = loc_st_now()-rah
-        return hah
+        if rah is None:
+            return None
+        return loc_st_now()-rah
 
     def get_current_ra(self):
         "Leggi ascensione retta telescopio (ore)"
@@ -1338,7 +1339,7 @@ class Executor:
                       "x92": (dcom.set_onstep_92, getint),
                       "x93": (dcom.set_onstep_93, getint),
                       "x95": (dcom.set_onstep_95, getint),
-                      "x96": (dcom.set_onstep_96, getint),
+                      "x96": (dcom.set_onstep_96, getword),
                       "x97": (dcom.set_onstep_97, getint),
                       "x98": (dcom.set_onstep_98, getint),
                       "x99": (dcom.set_onstep_99, getint),
