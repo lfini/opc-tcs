@@ -20,7 +20,7 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.6"
+__version__ = "1.7"
 __date__ = "Novembre 2019"
 __author__ = "Luca Fini"
 
@@ -124,8 +124,8 @@ GET_TEMP = ":ZT%d#"        # Get temperature from sensor n (return nn.n)
 
 FOC_SELECT = "%sA%s#"   # Seleziona fuocheggiatore (1/2)
 
-FOC_MOVEIN = "%s+#"    # Muove fuocheggiatore verso obiettivo
-FOC_MOVEOUT = "%s-#"   # Muove fuocheggiatore via da obiettivo
+FOC_MOVEIN = "%s+#"    # Muovi fuocheggiatore verso obiettivo
+FOC_MOVEOUT = "%s-#"   # Muovi fuocheggiatore via da obiettivo
 FOC_STOP = "%sQ#"      # Stop movimento fuocheggiatore
 FOC_ZERO = "%sZ#"      # Muovi in posizione zero
 FOC_FAST = "%sF#"      # Imposta movimento veloce
@@ -139,6 +139,21 @@ GET_FOC_POS = "%sG#"   # Leggi posizione corrente (+-ddd)
 GET_FOC_MIN = "%sI#"   # Leggi posizione minima
 GET_FOC_MAX = "%sM#"   # Leggi posizione minima
 GET_FOC_STAT = "%sT#"  # Leggi stato corrente (M: moving, S: stop)
+
+ROT_ENABLE = ":r+#"    # Abilita rotatore
+ROT_DISABLE = ":r-#"   # Disabilita rotatore
+ROT_TOPAR = ":rP#"     # Muovi rotatore ad angolo parallattico
+ROT_REVERS = ":rR#"    # Inverte direzione rotatore
+ROT_SETHOME = ":rF#"   # Reset rotatore a posizione home
+ROT_GOHOME = ":rC#"    # Muovi rotatore a posizione home
+ROT_CLKWISE = ":r>#"   # Muovi rotatore in senso orario come da comando
+ROT_CCLKWISE = ":r<#"  # Muovi rotatore in senso antiorario come da incremento
+ROT_SETINCR = ":r%d"   # Preset incremento per movimento rotatore (1,2,3)
+ROT_SETPOSP = ":rS+%03d*%02d'%02d" # Set posizione rotatore (+gradi)
+ROT_SETPOSN = ":rS-%03d*%02d'%02d" # Set posizione rotatore (-gradi)
+
+ROT_GET = ":rG#"       # Legge posizione rotatore (gradi)
+
 
 TRACKING_INFO = """
 Variabili relative alle frequenze di Tracking:
@@ -373,7 +388,14 @@ class TeleCommunicator:
         self.verbose = verbose
 
     def send_command(self, command, expected):
-        "Invio comandi. expected == True: prevista risposta"
+        """
+Invio comandi. expected == True: prevista risposta.
+
+Possibili valori di ritorno:
+    '':      nessuna risposta attesa
+    'xxxx':  Stringa di ritorno da OnStep
+    1/0:     Successo/fallimento da OnStep
+    None:    Risposta prevista ma non ricevuta"""
         if self.verbose:
             print("CMD-", command)
         skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -409,6 +431,8 @@ class TeleCommunicator:
                 repl = ret.decode("ascii")
                 if repl and repl[-1] == "#":
                     repl = repl[:-1]
+        else:
+            repl = ""
         return repl
 
     def set_verbose(self):
@@ -1023,6 +1047,60 @@ class TeleCommunicator:
         cmd = FOC_SETA%("f", pos)
         return self.send_command(cmd, False)
 
+    def rot_disable(self):
+        "Disabilita rotatore"
+        return self.send_command(ROT_DISABLE, False)
+
+    def rot_enable(self):
+        "Abilita rotatore"
+        return self.send_command(ROT_ENABLE, False)
+
+    def rot_topar(self):
+        "Muovi rotatore ad angolo parallattico"
+        return self.send_command(ROT_TOPAR, False)
+
+    def rot_reverse(self):
+        "Inverte direzione movimento rotatore"
+        return self.send_command(ROT_REVERS, False)
+
+    def rot_sethome(self):
+        "Imposta posizione corrente rotatore come HOME"
+        return self.send_command(ROT_SETHOME, False)
+
+    def rot_gohome(self):
+        "Muovi rotatore a posizione home"
+        return self.send_command(ROT_GOHOME, False)
+
+    def rot_clkwise(self):
+        "Muovi rotatore in senso orario (incremento prefissato)"
+        return self.send_command(ROT_CLKWISE, False)
+
+    def rot_cclkwise(self):
+        "Muovi rotatore in senso antiorario (incremento prefissato)"
+        return self.send_command(ROT_CCLKWISE, False)
+
+    def rot_setincr(self, incr):
+        "Imposta incremento per movimento rotatore (1:1 grado, 2:5 gradi, 3: 10 gradi)"
+        if incr < 1:
+            incr = 1
+        elif incr > 3:
+            incr = 3
+        cmd = ROT_SETINCR%incr
+        return self.send_command(cmd, False)
+
+    def rot_setpos(self, deg):
+        "Imposta posizione rotatore (gradi)"
+        if deg >= 0:
+            cmd = ROT_SETPOSP%(float2ums(deg))
+        else:
+            cmd = ROT_SETPOSN%(float2ums(deg))
+        return self.send_command(cmd, 1)
+
+    def rot_getpos(self):
+        "Legge posizione rotatore (gradi)"
+        ret = self.send_command(ROT_GET, True)
+        return ddmmss_decode(ret)
+
     def set_antib_dec(self, stpar):
         "Imposta valore anti backlash declinazione (steps per arcsec)"
         return self.send_command(SET_ANTIB_DEC%stpar, True)
@@ -1291,6 +1369,17 @@ class Executor:
                       "pgo": (dcom.pulse_guide_west, getint),
                       "pgn": (dcom.pulse_guide_north, getint),
                       "pgs": (dcom.pulse_guide_south, getint),
+                      "ren": (dcom.rot_enable, noargs),
+                      "rdi": (dcom.rot_disable, noargs),
+                      "rpa": (dcom.rot_topar, noargs),
+                      "rrv": (dcom.rot_reverse, noargs),
+                      "rsh": (dcom.rot_sethome, noargs),
+                      "rho": (dcom.rot_gohome, noargs),
+                      "rcw": (dcom.rot_clkwise, noargs),
+                      "rcc": (dcom.rot_cclkwise, noargs),
+                      "rsi": (dcom.rot_setincr, getint),
+                      "rsp": (dcom.rot_setpos, getddmmss),
+                      "rge": (dcom.rot_getpos, noargs),
                       "sad": (dcom.set_antib_dec, getint),
                       "sar": (dcom.set_antib_ra, getint),
                       "sho": (dcom.reset_home, noargs),

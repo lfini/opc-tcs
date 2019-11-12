@@ -249,6 +249,20 @@ class TelescopeDE(Linear):
     def __init__(self):
         Linear.__init__(self, (-40., 90.), self.MAXSPEED, self.TIMESTEP, True)
 
+class Focuser(Linear):
+    "Simulatore di Fuocheggiatore"
+    MAXSPEED = 1.0    # cm al secondo
+    TIMESTEP = 0.2
+    def __init__(self):
+        Linear.__init__(self, (-5, 5.), self.MAXSPEED, self.TIMESTEP, True)
+
+class CameraRotator(Rotator):
+    "Simulatore di rotatore"
+    MAXSPEED = 3.0    # gradi al secondo
+    TIMESTEP = 0.2
+    def __init__(self):
+        Rotator.__init__(self, (-180, 180.), self.MAXSPEED, self.TIMESTEP, True)
+
 class Target:
     "Definizione del target"
     def __init__(self, ras=0.0, dec=0.0):
@@ -293,6 +307,10 @@ class LX200(Telescope):
         self.utc_offset = 0
         self.latitude = 0
         self.longitude = 0
+
+        self.rotator = CameraRotator()
+        self.focuser1 = Focuser()
+        self.focuser2 = Focuser()
 
     def get_current_de(self):
         "Leggi declinazione del telescopio codificata LX200"
@@ -452,6 +470,34 @@ class LX200(Telescope):
                 ret = "GT2#"
             elif command[:3] == b":GZ":   # Comando GZ - Get telescope azimuth
                 ret = self.get_current_az()
+            elif command[:3] == b":r+":   # Comando r+ - Abilita rotatore
+                ret = "0"
+            elif command[:3] == b":r-":   # Comando r- - Disabilita rotatore
+                ret = "0"
+            elif command[:3] == b":rP":   # Comando rP - Muovi rotatore ad angolo parallattico
+                ret = "0"
+            elif command[:3] == b":rR":   # Comando rR - Inverte direzione rotatore
+                ret = "0"
+            elif command[:3] == b":rF":   # Comando rF - Reset rotatore a pos. home
+                ret = "0"
+            elif command[:3] == b":rC":   # Comando rC - Muovi rotatore a pos. home
+                ret = "0"
+            elif command[:3] == b":r>":   # Comando r> - Muove rotatore in senso orario
+                ret = "0"
+            elif command[:3] == b":r<":   # Comando r< - Muove rotatore in senso antiorario
+                ret = "0"
+            elif command[:3] == b":r1":   # Comando r1 - Imposta incremento rotatore
+                ret = "0"
+            elif command[:3] == b":r2":   # Comando r2 - Imposta incremento rotatore
+                ret = "0"
+            elif command[:3] == b":r3":   # Comando r3 - Imposta incremento rotatore
+                ret = "0"
+            elif command[:3] == b":rS":   # Comando rS - Imposta posizione rotatore
+                ret = "0"
+            elif command[:3] == b":rG":   # Comando rG - Leggi posizione rotatore
+                ret = "0"
+            elif command[:3] == b":r+":   # Comando r+ - Abilita rotatore
+                ret = "0"
             else:
                 ret = "0"
         except Exception as excp:
@@ -464,6 +510,9 @@ class LX200(Telescope):
         "Lancia simulatore telescopio"
         self.ra_axis.start()
         self.de_axis.start()
+        self.rotator.start()
+        self.focuser1.start()
+        self.focuser2.start()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(('', 9753))
