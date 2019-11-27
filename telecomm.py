@@ -650,7 +650,7 @@ Possibili valori di ritorno:
 
     def stop(self):
         "Ferma movimento telescopio"
-        return self.send_command(STOP_DIR%"", False)
+        return self.send_command(STOP, False)
 
     def stop_east(self):
         "Ferma movimento in direzione est"
