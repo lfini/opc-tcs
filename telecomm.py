@@ -20,8 +20,8 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.7"
-__date__ = "Novembre 2019"
+__version__ = "1.8"
+__date__ = "Dicembre 2019"
 __author__ = "Luca Fini"
 
                                 # Comandi definiti
@@ -525,64 +525,64 @@ Possibili valori di ritorno:
         return ret
 
     def _set_onstep_par(self, code, str_val):
-        "Set parametro on step generico"
+        "Imposta parametro on step generico"
         cmd = SET_ONSTEP_V%(code, str_val)
         return self.send_command(cmd, True)
 
     def set_onstep_00(self, value):
-        "Set OnStep indexAxis1 [integer]"
+        "Imposta OnStep indexAxis1 [integer]"
         return self._set_onstep_par("00", "%d"%value)
 
     def set_onstep_01(self, value):
-        "Set OnStep indexAxis2 [integer]"
+        "Imposta OnStep indexAxis2 [integer]"
         return self._set_onstep_par("01", "%d"%value)
 
     def set_onstep_02(self, value):
-        "Set OnStep altCor [integer]"
+        "Imposta OnStep altCor [integer]"
         return self._set_onstep_par("02", "%d"%value)
 
     def set_onstep_03(self, value):
-        "Set OnStep azmCor [integer]"
+        "Imposta OnStep azmCor [integer]"
         return self._set_onstep_par("03", "%d"%value)
 
     def set_onstep_04(self, value):
-        "Set OnStep doCor [integer]"
+        "Imposta OnStep doCor [integer]"
         return self._set_onstep_par("04", "%d"%value)
 
     def set_onstep_05(self, value):
-        "Set OnStep pdCor [integer]"
+        "Imposta OnStep pdCor [integer]"
         return self._set_onstep_par("05", "%d"%value)
 
     def set_onstep_06(self, value):
-        "Set OnStep dfCor [integer]"
+        "Imposta OnStep dfCor [integer]"
         return self._set_onstep_par("06", "%d"%value)
 
     def set_onstep_07(self, value):
-        "Set OnStep ffCor (inutilizz. per montatura equ) [integer]"
+        "Imposta OnStep ffCor (inutilizz. per montatura equ) [integer]"
         return self._set_onstep_par("07", "%d"%value)
 
     def set_onstep_08(self, value):
-        "Set OnStep tfCor [integer]"
+        "Imposta OnStep tfCor [integer]"
         return self._set_onstep_par("08", "%d"%value)
 
     def set_onstep_92(self, value):
-        "Set OnStep MaxRate (max. accelerazione) [integer]"
+        "Imposta OnStep MaxRate (max. accelerazione) [integer]"
         return self._set_onstep_par("92", "%d"%value)
 
     def set_onstep_93(self, value):
-        "Set OnStep MaxRate preset (max. accelerazione) [1-5: 200%,150%,100%,75%,50%]"
+        "Imposta OnStep MaxRate preset (max. accelerazione) [1-5: 200%,150%,100%,75%,50%]"
         if  0 < value < 6:
             return self._set_onstep_par("93", "%d"%value)
         return "0"
 
     def set_onstep_95(self, value):
-        "Set OnStep autoMeridianFlip [0: disabilita, 1: abilita]"
+        "Imposta OnStep autoMeridianFlip [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
         return self._set_onstep_par("95", "%d"%value)
 
     def set_onstep_96(self, value):
-        "Set OnStep preferredPierSide [E, W, B (best)]"
+        "Imposta OnStep preferredPierSide [E, W, B (best)]"
         try:
             value = value.upper()
         except:
@@ -592,29 +592,29 @@ Possibili valori di ritorno:
         return self._set_onstep_par("96", value)
 
     def set_onstep_97(self, value):
-        "Set OnStep cicalino [0: disabilita, 1: abilita]"
+        "Imposta OnStep cicalino [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
         return self._set_onstep_par("97", "%d"%value)
 
     def set_onstep_98(self, value):
-        "Set OnStep pausa a HOME all'inversione meridiano [0: disabilita, 1: abilita]"
+        "Imposta OnStep pausa a HOME all'inversione meridiano [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
         return self._set_onstep_par("98", "%d"%value)
 
     def set_onstep_99(self, value):
-        "Set OnStep continua dopo pausa a HOME [0: disabilita, 1: abilita]"
+        "Imposta OnStep continua dopo pausa a HOME [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
         return self._set_onstep_par("99", "%d"%value)
 
     def set_onstep_e9(self, value):
-        "Set OnStep minuti dopo il meridiano EST [integer]"
+        "Imposta OnStep minuti dopo il meridiano EST [integer]"
         return self._set_onstep_par("E9", "%d"%value)
 
     def set_onstep_ea(self, value):
-        "Set OnStep minuti dopo il meridiano OVEST [integer]"
+        "Imposta OnStep minuti dopo il meridiano OVEST [integer]"
         return self._set_onstep_par("EA", "%d"%value)
 
     def sync_radec(self):
