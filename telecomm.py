@@ -20,7 +20,7 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.8"
+__version__ = "1.9"
 __date__ = "Dicembre 2019"
 __author__ = "Luca Fini"
 
@@ -78,8 +78,8 @@ SYNC_RADEC = ":CS#"        # Sync with current RA/DEC (no reply)
 SET_ANTIB_DEC = "$BD%03d#"   # Set Dec Antibacklash
 SET_ANTIB_RA = "$BR%03d#"    # Set RA Antibacklash
 
-GET_ANTIB_DEC = "$BD#"       # Get Dec Antibacklash
-GET_ANTIB_RA = "$BR#"        # Get RA Antibacklash
+GET_ANTIB_DEC = "%BD#"       # Get Dec Antibacklash
+GET_ANTIB_RA = "%BR#"        # Get RA Antibacklash
 
 
                            # Comandi informativi
