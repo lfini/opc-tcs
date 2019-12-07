@@ -20,12 +20,15 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.9"
+__version__ = "1.10"
 __date__ = "Dicembre 2019"
 __author__ = "Luca Fini"
 
                                 # Comandi definiti
                                  # Comandi di preset
+SET_ALTP = ":Sa+%02d*%02d'%02d#" # Set altezza target (+dd,mm,ss)
+SET_ALTN = ":Sa-%02d*%02d'%02d#" # Set altezza target (-dd,mm,ss)
+SET_AZ = ":Sz%03d*%02d"          # Set azimuth target (ddd,mm)
 SET_DATE = ":SC%02d/%02d/%02d#"  # Set data
 SET_DECP = ":Sd+%02d*%02d:%02d#" # Set declinazione target (+dd,mm,ss)
 SET_DECN = ":Sd-%02d*%02d:%02d#" # Set declinazione target (-dd,mm,ss)
@@ -33,6 +36,9 @@ SET_LATP = ":St+%02d*%02d#"      # Set latitudine del luogo (+dd, mm)
 SET_LATN = ":St-%02d*%02d#"      # Set latitudine del luogo (-dd, mm)
 SET_LONP = ":Sg+%03d*%02d#"      # Set longitudine del luogo (+ddd, mm)
 SET_LONN = ":Sg-%03d*%02d#"      # Set longitudine del luogo (-ddd, mm)
+SET_MNAP = ":Sh+%02d#"           # Set minima altezza raggiungibile (+dd)
+SET_MNAN = ":Sh-%02d#"           # Set minima altezza raggiungibile (-dd)
+SET_MAXA = ":So%02d#"            # Set massima altezza raggiungibile (dd)
 SET_LTIME = ":SL%02d:%02d:%02d#" # Set ora locale: hh, mm, ss
 SET_ONSTEP_V = ":SX%s,%s#"       # Set valore OnStep
 SET_RA = ":Sr%02d:%02d:%02d#"    # Set ascensione retta dell'oggetto target (hh,mm,ss)
@@ -453,6 +459,27 @@ Possibili valori di ritorno:
             raise ValueError
         return ret
 
+    def set_alt(self, deg):
+        "Imposta altezza oggetto (gradi)"
+        if deg >= -90. and deg <= 90.:
+            if deg >= 0:
+                cmd = SET_ALTP%(float2ums(deg))
+            else:
+                cmd = SET_ALTN%(float2ums(-deg))
+            ret = self.send_command(cmd, 1)
+        else:
+            raise ValueError
+        return ret
+
+    def set_az(self, deg):
+        "Imposta azimut oggetto (0..360 gradi)"
+        if deg >= -0. and deg <= 360.:
+            cmd = SET_AZ%float2ums(deg)[:2]
+            ret = self.send_command(cmd, 1)
+        else:
+            raise ValueError
+        return ret
+
     def set_de(self, deg):
         "Imposta declinazione oggetto (gradi)"
         if deg >= -90. and deg <= 90.:
@@ -460,6 +487,27 @@ Possibili valori di ritorno:
                 cmd = SET_DECP%(float2ums(deg))
             else:
                 cmd = SET_DECN%(float2ums(-deg))
+            ret = self.send_command(cmd, 1)
+        else:
+            raise ValueError
+        return ret
+
+    def set_max_alt(self, deg):
+        "Imposta altezza massima raggiungibile (60..90 gradi)"
+        if deg >= 60 and deg <= 90:
+            cmd = SET_MAXA%deg
+            ret = self.send_command(cmd, 1)
+        else:
+            raise ValueError
+        return ret
+
+    def set_min_alt(self, deg):
+        "Imposta altezza minima raggiungibile (-30..30 gradi)"
+        if deg >= -30 and deg <= 30:
+            if deg >= 0:
+                cmd = SET_MNAP%(deg)
+            else:
+                cmd = SET_MNAN%(-deg)
             ret = self.send_command(cmd, 1)
         else:
             raise ValueError
@@ -811,12 +859,12 @@ Possibili valori di ritorno:
         return self.send_command(cmd, True)
 
     def get_hlim(self):
-        "Leggi limite orizzonte (gradi)"
+        "Leggi minima altezza sull'orizzonte (gradi)"
         ret = self.send_command(GET_HLIM, True)
         return ret
 
     def get_olim(self):
-        "Leggi limite overhead (gradi)"
+        "Leggi massima altezza sull'orizzonte (gradi)"
         ret = self.send_command(GET_OVER, True)
         return ret
 
@@ -1394,6 +1442,10 @@ class Executor:
                       "srt": (dcom.set_rate, getword),
                       "sda": (dcom.set_date, noargs),
                       "sdo": (dcom.set_de, getddmmss),
+                      "sal": (dcom.set_alt, getddmmss),
+                      "saz": (dcom.set_az, getddmmss),
+                      "smn": (dcom.set_min_alt, getint),
+                      "smx": (dcom.set_max_alt, getint),
                       "slo": (dcom.set_lon, getddmmss),
                       "sro": (dcom.set_ra, getddmmss),
                       "std": (dcom.set_tsid, noargs),
