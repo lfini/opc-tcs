@@ -20,7 +20,7 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.10"
+__version__ = "1.11"
 __date__ = "Dicembre 2019"
 __author__ = "Luca Fini"
 
@@ -121,6 +121,7 @@ GET_TAR_RA = ":Gr#"        # Get target right ascension
 GET_TFMT = ":Gc#"          # Get current time format (ret: 24#)
 GET_UOFF = ":GG#"          # Get UTC offset time
 
+GET_NTEMP = ":ZTn#"        # Get number of temperature sensors
 GET_TEMP = ":ZT%d#"        # Get temperature from sensor n (return nn.n)
 
 # Comandi fuocheggatore.
@@ -970,6 +971,11 @@ Possibili valori di ritorno:
             value = None
         return value
 
+    def get_ntemp(self):
+        "Leggi numero di sensori di temperatura"
+        ret = self.send_command(GET_NTEMP, True)
+        return int(ret)
+
     def get_temp(self, num):
         "Leggi sensore temperatura n"
         if num >= 0 and num <= 9:
@@ -1402,6 +1408,7 @@ class Executor:
                       "gst": (dcom.gst_print, noargs),
                       "gte": (dcom.get_temp, getint),
                       "gtf": (dcom.get_timefmt, noargs),
+                      "gtn": (dcom.get_ntemp, noargs),
                       "gtr": (dcom.get_trate, noargs),
                       "gts": (dcom.get_tsid, noargs),
                       "guo": (dcom.get_utcoffset, noargs),
