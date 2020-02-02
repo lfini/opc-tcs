@@ -5,11 +5,12 @@ Implementa i codici LX200 specifici per OnStep
 
 Uso interattivo:
 
-      python telcomm.py [-d] [-v]
+      python telcomm.py [-dhvV]
 
 Dove:
       -d  Collegamento al simulatore (IP: 127.0.0.1, Port: 9753)
       -v  Modo verboso (visualizza protocollo)
+      -V  Mostra versione ed esci
 """
 
 import sys
@@ -20,8 +21,8 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.11"
-__date__ = "Dicembre 2019"
+__version__ = "1.12"
+__date__ = "Febbraio 2019"
 __author__ = "Luca Fini"
 
                                 # Comandi definiti
@@ -69,7 +70,7 @@ MOVE_DIR = ":M%s#"               # Muovi ad est/ovest/nord/sud
 STOP_DIR = ":Q%s#"               # Stop movimento ad est/ovest/nord/sud
 STOP = ":Q#"                     # Stop telescopio
 
-PULSE_M = "Mg%s%d#"              # Pulse move              < TBD
+PULSE_M = ":Mg%s%d#"              # Pulse move              < TBD
 
 SET_HOME = ":hF#"                # Reset telescope at Home position.
 GOTO_HOME = ":hC#"               # Move telescope to Home position.
@@ -81,11 +82,11 @@ SYNC_RADEC = ":CS#"        # Sync with current RA/DEC (no reply)
 
 #Comandi set/get antibacklash
 
-SET_ANTIB_DEC = "$BD%03d#"   # Set Dec Antibacklash
-SET_ANTIB_RA = "$BR%03d#"    # Set RA Antibacklash
+SET_ANTIB_DEC = ":$BD%03d#"   # Set Dec Antibacklash
+SET_ANTIB_RA = ":$BR%03d#"    # Set RA Antibacklash
 
-GET_ANTIB_DEC = "%BD#"       # Get Dec Antibacklash
-GET_ANTIB_RA = "%BR#"        # Get RA Antibacklash
+GET_ANTIB_DEC = ":%BD#"       # Get Dec Antibacklash
+GET_ANTIB_RA = ":%BR#"        # Get RA Antibacklash
 
 
                            # Comandi informativi
@@ -129,23 +130,23 @@ GET_TEMP = ":ZT%d#"        # Get temperature from sensor n (return nn.n)
 #       fuocheggiatore 1 se iniziano per "F"
 #       e il fuocheggiatore 2 se iniziano per "f"
 
-FOC_SELECT = "%sA%s#"   # Seleziona fuocheggiatore (1/2)
+FOC_SELECT = ":%sA%s#" # Seleziona fuocheggiatore (1/2)
 
-FOC_MOVEIN = "%s+#"    # Muovi fuocheggiatore verso obiettivo
-FOC_MOVEOUT = "%s-#"   # Muovi fuocheggiatore via da obiettivo
-FOC_STOP = "%sQ#"      # Stop movimento fuocheggiatore
-FOC_ZERO = "%sZ#"      # Muovi in posizione zero
-FOC_FAST = "%sF#"      # Imposta movimento veloce
-FOC_SETR = "%sR%04d#"  # Imposta posizione relativa (micron)
-FOC_SLOW = "%sS#"      # Imposta movimento lento
-FOC_SETA = "%sS%04d#"  # Imposta posizione assoluta (micron)
-FOC_RATE = "%s%1d"     # Imposta velocità (1,2,3,4)
+FOC_MOVEIN = ":%s+#"   # Muovi fuocheggiatore verso obiettivo
+FOC_MOVEOUT = ":%s-#"  # Muovi fuocheggiatore via da obiettivo
+FOC_STOP = ":%sQ#"     # Stop movimento fuocheggiatore
+FOC_ZERO = ":%sZ#"     # Muovi in posizione zero
+FOC_FAST = ":%sF#"     # Imposta movimento veloce
+FOC_SETR = ":%sR%04d#" # Imposta posizione relativa (micron)
+FOC_SLOW = ":%sS#"     # Imposta movimento lento
+FOC_SETA = ":%sS%04d#" # Imposta posizione assoluta (micron)
+FOC_RATE = ":%s%1d"    # Imposta velocità (1,2,3,4)
 
 GET_FOC_ACT = ":%sA#"  # Fuocheggiatore attivo (ret: 0/1)
-GET_FOC_POS = "%sG#"   # Leggi posizione corrente (+-ddd)
-GET_FOC_MIN = "%sI#"   # Leggi posizione minima
-GET_FOC_MAX = "%sM#"   # Leggi posizione minima
-GET_FOC_STAT = "%sT#"  # Leggi stato corrente (M: moving, S: stop)
+GET_FOC_POS = ":%sG#"  # Leggi posizione corrente (+-ddd)
+GET_FOC_MIN = ":%sI#"  # Leggi posizione minima
+GET_FOC_MAX = ":%sM#"  # Leggi posizione minima
+GET_FOC_STAT = ":%sT#" # Leggi stato corrente (M: moving, S: stop)
 
 ROT_ENABLE = ":r+#"    # Abilita rotatore
 ROT_DISABLE = ":r-#"   # Disabilita rotatore
@@ -341,6 +342,10 @@ CODICI_ONSTEP_GX = """
   GE:   valueAux14/2.55
   GF:   valueAux15/2.55
 """
+
+def get_version():
+    "Riporta informazioni su versione"
+    return "telecomm.py - Vers. %s. %s %s"%(__version__, __author__, __date__)
 
 DDMMSS_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})[':](\\d{2})")
 DDMM_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})")
@@ -1560,7 +1565,12 @@ class Executor:
 def main():
     "Invio comandi da console e test"
     if '-h' in sys.argv:
+        print(get_version())
         print(__doc__)
+        sys.exit()
+
+    if '-V' in sys.argv:
+        print(get_version())
         sys.exit()
 
     if '-d' in sys.argv:
