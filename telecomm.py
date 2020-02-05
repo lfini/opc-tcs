@@ -25,7 +25,10 @@ __version__ = "1.12"
 __date__ = "Febbraio 2019"
 __author__ = "Luca Fini"
 
-                                # Comandi definiti
+class LastErr:
+    "Ultimo messaggio di errore"
+    txt = ""
+                                 # Comandi definiti
                                  # Comandi di preset
 SET_ALTP = ":Sa+%02d*%02d'%02d#" # Set altezza target (+dd,mm,ss)
 SET_ALTN = ":Sa-%02d*%02d'%02d#" # Set altezza target (-dd,mm,ss)
@@ -148,6 +151,7 @@ GET_FOC_MIN = ":%sI#"  # Leggi posizione minima
 GET_FOC_MAX = ":%sM#"  # Leggi posizione minima
 GET_FOC_STAT = ":%sT#" # Leggi stato corrente (M: moving, S: stop)
 
+ROT_SETCONT = ":rc#"   # Imposta movimento continuo
 ROT_ENABLE = ":r+#"    # Abilita rotatore
 ROT_DISABLE = ":r-#"   # Disabilita rotatore
 ROT_TOPAR = ":rP#"     # Muovi rotatore ad angolo parallattico
@@ -385,8 +389,9 @@ def float_decode(the_str):
     "Decodifica stringa x.xxxx"
     try:
         val = float(the_str)
-    except ValueError:
+    except ValueError as excp:
         val = float('nan')
+        LastErr.txt = str(excp)
     return val
 
 
@@ -408,6 +413,7 @@ Possibili valori di ritorno:
     'xxxx':  Stringa di ritorno da OnStep
     1/0:     Successo/fallimento da OnStep
     None:    Risposta prevista ma non ricevuta"""
+        LastErr.txt = ""
         if self.verbose:
             print("CMD-", command)
         skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -422,6 +428,7 @@ Possibili valori di ritorno:
             skt.sendall(command.encode("ascii"))
         except socket.timeout:
             skt.close()
+            LastErr.txt = "Timeout"
             return None
         ret = b""
         repl = None
@@ -434,8 +441,8 @@ Possibili valori di ritorno:
                     ret += nchr
                     if nchr == b"#":
                         break
-            except (socket.timeout, IOError):
-                pass
+            except (socket.timeout, IOError) as excp:
+                LastErr.txt = str(excp)
             finally:
                 if self.verbose:
                     print("RET-", ret)
@@ -575,6 +582,7 @@ Possibili valori di ritorno:
         try:
             ret = ret1+ret2
         except TypeError:
+            LastErr.txt = "Invalid return (%s+%s)"%(str(ret1), str(ret2))
             ret = None
         return ret
 
@@ -827,7 +835,12 @@ Possibili valori di ritorno:
         cmd = GET_FOC_MAX%focuser
         ret = self.send_command(cmd, True)
         if ret:
-            return int(ret)
+            try:
+                val = int(ret)
+            except Exception as excp:
+                val = None
+                LastErr.txt = str(excp)
+            return val
         return None
 
     def get_foc1_max(self):
@@ -972,8 +985,9 @@ Possibili valori di ritorno:
         ret = self.send_command(GET_UOFF, True)
         try:
             value = float(ret)
-        except ValueError:
+        except ValueError as excp:
             value = None
+            LastErr.txt = str(excp)
         return value
 
     def get_ntemp(self):
@@ -988,7 +1002,8 @@ Possibili valori di ritorno:
             ret = self.send_command(cmd, True)
             try:
                 value = float(ret)
-            except ValueError:
+            except ValueError as excp:
+                LastErr.txt = str(excp)
                 value = None
         else:
             value = None
@@ -1114,6 +1129,10 @@ Possibili valori di ritorno:
         "Abilita rotatore"
         return self.send_command(ROT_ENABLE, False)
 
+    def rot_setcont(self):
+        "Imposta movimento continuo per rotatore"
+        return self.send_command(ROT_SETCONT, False)
+
     def rot_topar(self):
         "Muovi rotatore ad angolo parallattico"
         return self.send_command(ROT_TOPAR, False)
@@ -1158,7 +1177,7 @@ Possibili valori di ritorno:
     def rot_getpos(self):
         "Legge posizione rotatore (gradi)"
         ret = self.send_command(ROT_GET, True)
-        return ddmmss_decode(ret)
+        return ddmm_decode(ret)
 
     def set_antib_dec(self, stpar):
         "Imposta valore anti backlash declinazione (steps per arcsec)"
@@ -1261,6 +1280,7 @@ Possibili valori di ritorno:
         try:
             ret = ret1+ret2+ret3+ret4
         except TypeError:
+            LastErr.txt = "Error from some command of group"
             ret = None
         return ret
 
@@ -1429,17 +1449,18 @@ class Executor:
                       "pgo": (dcom.pulse_guide_west, getint),
                       "pgn": (dcom.pulse_guide_north, getint),
                       "pgs": (dcom.pulse_guide_south, getint),
-                      "ren": (dcom.rot_enable, noargs),
+                      "rcc": (dcom.rot_cclkwise, noargs),
+                      "rct": (dcom.rot_setcont, noargs),
+                      "rcw": (dcom.rot_clkwise, noargs),
                       "rdi": (dcom.rot_disable, noargs),
+                      "ren": (dcom.rot_enable, noargs),
+                      "rge": (dcom.rot_getpos, noargs),
+                      "rho": (dcom.rot_gohome, noargs),
                       "rpa": (dcom.rot_topar, noargs),
                       "rrv": (dcom.rot_reverse, noargs),
                       "rsh": (dcom.rot_sethome, noargs),
-                      "rho": (dcom.rot_gohome, noargs),
-                      "rcw": (dcom.rot_clkwise, noargs),
-                      "rcc": (dcom.rot_cclkwise, noargs),
                       "rsi": (dcom.rot_setincr, getint),
                       "rsp": (dcom.rot_setpos, getddmmss),
-                      "rge": (dcom.rot_getpos, noargs),
                       "sad": (dcom.set_antib_dec, getint),
                       "sar": (dcom.set_antib_ra, getint),
                       "sho": (dcom.reset_home, noargs),
@@ -1548,7 +1569,7 @@ class Executor:
                 except TypeError:
                     ret = "Argomento mancante"
             if ret is None:
-                ret = "Nessuna risposta"
+                ret = "Errore comando: "+LastErr.txt
         else:
             ret = "Comando sconosciuto!"
         return ret
