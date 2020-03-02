@@ -69,12 +69,19 @@ def _inrange(val, limit):
     "test val in [0, limit)"
     return 0 <= val < limit
 
-def dms_star_encode(value, with_sign=True, seconds=True):
+def dms_star_encode(value, with_sign=True, precision="S"):
     "Converte valore in [s]DD*MM'SS#"
-    if seconds:
-        ret = "%s%02d*%02d:%02d#"%_convert(value, 360)
+    select = precision[0].upper()
+    sign, degs, mins, secs = _convert(value, 360)
+    if select == "S":
+        ret = "%s%02d*%02d'%02d#"%(sign, degs, mins, secs)
+    elif select == "M":
+        ret = "%s%02d*%02d#"%(sign, degs, mins)
     else:
-        ret = "%s%02d*%02d#"%_convert(value, 360)[:-1]
+        sign, degs, mins, secs = _convert(value, 360)
+        isec = int(secs)
+        frac = int((secs-isec)*1000)
+        ret = "%s%02d*%02d:%02d.%03d#"%(sign, degs, mins, isec, frac)
     if with_sign:
         return ret
     else:
@@ -83,15 +90,22 @@ def dms_star_encode(value, with_sign=True, seconds=True):
         else:
             raise ValueError
 
-def hms_colon_encode(value):
+def hms_colon_encode(value, precision="S"):
     "Converte valore in formato HH:MM:SS#"
     while value < 0.0:
         value += 24.
-    return "%02d:%02d:%02d#"%_convert(value, 24)[1:]
+    hrs, mins, secs = _convert(value, 24)[1:]
+    if precision == "S":
+        return "%02d:%02d:%02d#"%(hrs, mins, secs)
+    isec = int(secs)
+    frac = int((secs-isec)*1000)
+    return "%02d:%02d:%02d.%03d#"%(hrs, mins, isec, frac)
 
-def dddmm_star_encode(value, with_sign=True, seconds=True):
+
+def dddmm_star_encode(value, with_sign=True, precision="S"):
     "Converte valore in formato DDD*MM'SS#"
-    if seconds:
+    sel = precision[0].upper()
+    if sel == "S":
         ret = "%s%03d*%02d'%02d#"%_convert(value, 360)
     else:
         ret = "%s%03d*%02d#"%_convert(value, 360)[:-1]
@@ -312,6 +326,10 @@ class LX200(Telescope):
         self.focuser1 = Focuser()
         self.focuser2 = Focuser()
 
+    def get_current_deh(self):
+        "Leggi declinazione del telescopio codificata LX200 (alta precisione)"
+        return dms_star_encode(self.de_axis.position, precision="h")
+
     def get_current_de(self):
         "Leggi declinazione del telescopio codificata LX200"
         return dms_star_encode(self.de_axis.position)
@@ -328,6 +346,10 @@ class LX200(Telescope):
         tsid_rad = astro.loc_st(*ltime, self.utc_offset, lon_rad)*astro.HOUR_TO_RAD
         ha_rad = tsid_rad-ra_rad
         return astro.az_coords(ha_rad, de_rad)
+
+    def get_current_rah(self):
+        "Leggi ascensione retta del telescopio codificata LX200 (alta precisione)"
+        return hms_colon_encode(self.ra_axis.position, precision="h")
 
     def get_current_ra(self):
         "Leggi ascensione retta del telescopio codificata LX200"
@@ -357,19 +379,27 @@ class LX200(Telescope):
 
     def get_lon(self):
         "Leggi longitudine"
-        return dddmm_star_encode(self.longitude, with_sign=True, seconds=False)
+        return dddmm_star_encode(self.longitude, with_sign=True, precision="M")
 
     def get_lat(self):
         "Leggi latitudine"
-        return dms_star_encode(self.latitude, with_sign=True, seconds=False)
+        return dms_star_encode(self.latitude, with_sign=True, precision="M")
 
     def get_target_de(self):
         "Leggi declinazione del target codificata LX200"
         return dms_star_encode(self.target.dec)
 
+    def get_target_deh(self):
+        "Leggi declinazione del target codificata LX200 alta prec."
+        return dms_star_encode(self.target.dec, precision="h")
+
     def get_target_ra(self):
         "Leggi ascensione retta del target codificata LX200"
         return hms_colon_encode(self.target.ras)
+
+    def get_target_rah(self):
+        "Leggi ascensione retta del target codificata LX200 alta prec."
+        return hms_colon_encode(self.target.ras, precision="h")
 
     def get_tsid(self):
         "Riporta tempo siderale"
@@ -413,7 +443,8 @@ class LX200(Telescope):
                 else:
                     ret = "0"
             elif command[:3] == b":Sg": # Comando SgDDD*MM - Set Longitude
-                ddd, mmm = (int(command[3:6]), int(command[7:9]))
+                print(command[3:7], command[8:10])
+                ddd, mmm = (int(command[3:7]), int(command[8:10]))
                 if _inrange(ddd, 360) and _inrange(mmm, 60):
                     self.longitude = ddd+mmm/60.
                     ret = "1"
@@ -442,8 +473,12 @@ class LX200(Telescope):
                 ret = self.get_current_alt()
             elif command[:3] == b":GC":   # Comando GA - Get telescope date
                 ret = self.get_date()
+            elif command[:4] == b":GDA":   # Comando GDA - Get scope declination (alta prec.)
+                ret = self.get_current_deh()
             elif command[:3] == b":GD":   # Comando GD - Get scope declination
                 ret = self.get_current_de()
+            elif command[:4] == b":Gda":   # Comando Gd - Get target declination
+                ret = self.get_target_deh()
             elif command[:3] == b":Gd":   # Comando Gd - Get target declination
                 ret = self.get_target_de()
             elif command[:3] == b":GG":   # Comando GG - Get UTC offset
@@ -454,8 +489,12 @@ class LX200(Telescope):
                 ret = self.get_ltime()
             elif command[:3] == b":Gm":   # Comando Gm - Get pier side
                 ret = self.get_pier_side()
+            elif command[:4] == b":GRA":   # Comando GR - Get scope right ascension
+                ret = self.get_current_rah()
             elif command[:3] == b":GR":   # Comando GR - Get scope right ascension
                 ret = self.get_current_ra()
+            elif command[:4] == b":Gra":   # Comando Gr - Get target right ascension
+                ret = self.get_target_rah()
             elif command[:3] == b":Gr":   # Comando Gr - Get target right ascension
                 ret = self.get_target_ra()
             elif command[:3] == b":GS":   # Comando GS - Get sidereal time
@@ -527,13 +566,14 @@ class LX200(Telescope):
                 if not achar:
                     break
                 if achar == b"#":
+                    if VERBOSE:
+                        print("Comando telescopio da %s %s#"%(address[0], command.decode("ascii")), end=" ")
                     ret = self.execute(command)
                     client.sendall(ret)
                     client.shutdown(socket.SHUT_RDWR)
                     client.close()
                     if VERBOSE:
-                        print("Comando telescopio da %s %s#"%(address[0], command.decode("ascii")),
-                              "-", ret.decode("ascii"), flush=True)
+                        print("-", ret.decode("ascii"), flush=True)
                     command = b""
                     break
                 else:

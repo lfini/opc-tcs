@@ -53,7 +53,7 @@ class OPC:
     cos_lat = cos(lat_rad)
     sin_lat = sin(lat_rad)
 
-def jul_date(year, mon, day, hour, mnt, sec, utc_offset=0):
+def jul_date(year, mon, day, hour, mins, secs, utc_offset=0):
     "Calcolo data giuliana per dato tempo civile"
     if mon <= 2:
         year -= 1
@@ -61,22 +61,22 @@ def jul_date(year, mon, day, hour, mnt, sec, utc_offset=0):
     aaa = int(year/100)
     bbb = 2-aaa+int(aaa/4)
     jd0 = int(365.25*(year+4716))+int(30.6*(mon+1))+day+bbb-1524.5
-    hoff = (hour+mnt/60.+sec/3600.-utc_offset)/24.
+    hoff = (hour+mins/60.+secs/3600.-utc_offset)/24.
     return jd0+hoff
 
 #   tsid_grnw usa una formula semplificata con errore 0.1 sec per secolo
 #   vedi: http://aa.usno.navy.mil/faq/docs/GAST.php
-def tsid_grnw(year, mon, day, hour, mnt, sec, utc_offset=0):
+def tsid_grnw(year, mon, day, hour, mins, secs, utc_offset=0):
     "Calcolo tempo sidereo medio di Greenwhich"
-    jd2000 = jul_date(year, mon, day, hour, mnt, sec, utc_offset)-2451545.0
+    jd2000 = jul_date(year, mon, day, hour, mins, secs, utc_offset)-2451545.0
     gmst = fmod(18.697374558+24.06570982441908*jd2000, 24.)
     if gmst < 0:
         gmst += 24.
     return gmst
 
-def loc_st(year, mon, day, hour, mnt, sec, utc_offset=0, lon_rad=0.0):
+def loc_st(year, mon, day, hour, mins, secs, utc_offset=0, lon_rad=0.0):
     "Calcolo tempo sidereo locale per generico luogo"
-    gmst = tsid_grnw(year, mon, day, hour, mnt, sec, utc_offset)
+    gmst = tsid_grnw(year, mon, day, hour, mins, secs, utc_offset)
     locst = fmod(gmst+lon_rad*RAD_TO_HOUR, 24.)
     if locst < 0:
         locst += 24.
@@ -136,50 +136,61 @@ def deg2rad(deg):
     "Convert degrees (float) into radians"
     return deg*DEG_TO_RAD
 
-def ums2float(deg, mnt, sec):
-    "Convert units (unit, mnt, sec) into float"
-    sign = 1 if deg >= 0 else -1
-    deg = abs(deg)
-    if mnt < 0 or mnt > 59:
+def ums2float(sign, units, mins, secs):
+    "Convert units (sign, unit, mins, secs) into float"
+    if mins < 0 or mins > 59:
         raise Exception("DMS error")
-    if sec < 0 or sec >= 60.0:
+    if secs < 0 or secs >= 60.0:
         raise Exception("DMS error")
-    return sign*(deg+mnt/60.+sec/3600.)
+    return sign*(units+mins/60.+secs/3600.)
 
-def hms2deg(hour, mnt, sec):
-    "Convert hours (hour, mnt, sec) into degrees (float)"
-    return ums2float(hour, mnt, sec)*HOUR_TO_DEG
+def hms2deg(sign, hour, mins, secs):
+    "Convert hours (hour, mins, secs) into degrees (float)"
+    return ums2float(sign, hour, mins, secs)*HOUR_TO_DEG
 
-def hms2rad(hour, mnt, sec):
-    "Convert hours (hour, mnt, sec) into radians"
-    return ums2float(hour, mnt, sec)*HOUR_TO_RAD
+def hms2rad(sign, hour, mins, secs):
+    "Convert hours (sign, hour, mins, secs) into radians"
+    return ums2float(sign, hour, mins, secs)*HOUR_TO_RAD
 
-def dms2rad(deg, mnt, sec):
-    "Convert (deg, mnt, sec) in radians"
-    return ums2float(deg, mnt, sec)*DEG_TO_RAD
+def dms2rad(sign, deg, mins, secs):
+    "Convert (sign, deg, mins, secs) in radians"
+    return ums2float(sign, deg, mins, secs)*DEG_TO_RAD
 
 def rad2deg(rad):
     "Convert radians (float) into degrees (float)"
     return rad*RAD_TO_DEG
 
-def rad2dms(rad):
-    "Convert radians (float) into degrees (deg, mnt, sec) sign on deg"
+def rad2dms(rad, module=0, precision=0):
+    "Convert radians (float) into degrees (sign, deg, mins, secs)"
     deg = rad*RAD_TO_DEG
-    return float2ums(deg)
+    return float2ums(deg, module, precision)
 
-def float2ums(value):
-    "Convert float value into (units, minutes, seconds) sign on units"
+def float2ums(value, module=0, precision=0):
+    "Convert float value into (sign, units, minutes, secs, frac)"
+    if module:
+        value %= module
     sign = 1 if value >= 0.0 else -1
     value = abs(value)
-    idd = int(value)
-    rest = (value-idd)*60.
-    mnt = int(rest)
-    sec = int((rest-mnt)*60+0.5)
-    if sec>59:
-        mnt += 1
-        if mnt > 59:
-            idd += 1
-    return (idd*sign, mnt, sec)
+    units = int(value)
+    rest = (value-units)*60.
+    mins = int(rest)
+    rest = (rest-mins)*60.
+    secs = int(rest)
+    rest = (rest-secs)
+    if precision:
+        fmt = "%%.%df"%precision
+        frac = fmt%rest
+        secs += float(frac)
+    else:
+        if rest > 0.5:
+            secs += 1
+    if secs >= 60:
+        secs = 0
+        mins += 1
+        if mins >= 60:
+            mins = 0
+            units += 1
+    return (sign, units, mins, secs)
 
 TEST_TEXT = """
 Per effettuare test di qualità sulle funzioni di questo modulo usare:

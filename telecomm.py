@@ -21,8 +21,8 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "1.12"
-__date__ = "Febbraio 2019"
+__version__ = "2.1"
+__date__ = "Febbraio 2020"
 __author__ = "Luca Fini"
 
 class LastErr:
@@ -30,22 +30,18 @@ class LastErr:
     txt = ""
                                  # Comandi definiti
                                  # Comandi di preset
-SET_ALTP = ":Sa+%02d*%02d'%02d#" # Set altezza target (+dd,mm,ss)
-SET_ALTN = ":Sa-%02d*%02d'%02d#" # Set altezza target (-dd,mm,ss)
+SET_ALT = ":Sa%s%02d*%02d'%02d#" # Set altezza target (+-dd,mm,ss)
 SET_AZ = ":Sz%03d*%02d"          # Set azimuth target (ddd,mm)
 SET_DATE = ":SC%02d/%02d/%02d#"  # Set data
-SET_DECP = ":Sd+%02d*%02d:%02d#" # Set declinazione target (+dd,mm,ss)
-SET_DECN = ":Sd-%02d*%02d:%02d#" # Set declinazione target (-dd,mm,ss)
-SET_LATP = ":St+%02d*%02d#"      # Set latitudine del luogo (+dd, mm)
-SET_LATN = ":St-%02d*%02d#"      # Set latitudine del luogo (-dd, mm)
-SET_LONP = ":Sg+%03d*%02d#"      # Set longitudine del luogo (+ddd, mm)
-SET_LONN = ":Sg-%03d*%02d#"      # Set longitudine del luogo (-ddd, mm)
+SET_DEC = ":Sd%s%02d*%02d:%02d.%03d#" # Set declinazione target (+dd,mm,ss.sss)
+SET_LAT = ":St%s%02d*%02d#"      # Set latitudine del luogo (+dd, mm)
+SET_LON = ":Sg%s%03d*%02d#"      # Set longitudine del luogo (+ddd, mm)
 SET_MNAP = ":Sh+%02d#"           # Set minima altezza raggiungibile (+dd)
 SET_MNAN = ":Sh-%02d#"           # Set minima altezza raggiungibile (-dd)
 SET_MAXA = ":So%02d#"            # Set massima altezza raggiungibile (dd)
 SET_LTIME = ":SL%02d:%02d:%02d#" # Set ora locale: hh, mm, ss
 SET_ONSTEP_V = ":SX%s,%s#"       # Set valore OnStep
-SET_RA = ":Sr%02d:%02d:%02d#"    # Set ascensione retta dell'oggetto target (hh,mm,ss)
+SET_RA = ":Sr%02d:%02d:%02d.%03d#"# Set ascensione retta dell'oggetto target (hh,mm,ss.sss)
 SET_TRATE = ":ST%08.5f#"         # Set freq. di tracking (formato da commenti nel codice)
 SET_TSID = ":SS%02d:%02d:%02d#"  # Set tempo sidereo: hh, mm, ss
 SET_UOFF = ":SG%s%04.1f#"        # Set UTC offset (UTC = LocalTime+Offset)
@@ -82,6 +78,7 @@ SET_PARK = ":hQ#"                # Park telescope
 UNPARK = ":hR#"                  # Unpark telescope
 
 SYNC_RADEC = ":CS#"        # Sync with current RA/DEC (no reply)
+SYNC_TARADEC = ":CM#"       # Sync with target RA/DEC (no reply)
 
 #Comandi set/get antibacklash
 
@@ -96,7 +93,9 @@ GET_ANTIB_RA = ":%BR#"        # Get RA Antibacklash
 GET_AZ = ":GZ#"            # Get telescope azimuth
 GET_ALT = ":GA#"           # Get telescope altitude
 GET_CUR_DE = ":GD#"        # Get current declination
+GET_CUR_DEH = ":GDA#"      # Get current declination (High precision)
 GET_CUR_RA = ":GR#"        # Get current right ascension
+GET_CUR_RAH = ":GRA#"      # Get current right ascension (High precision)
 GET_DB = ":D#"             # Get distance bar
 GET_DATE = ":GC#"          # Get date
 GET_HLIM = ":Gh"           # Get horizont limit
@@ -121,7 +120,9 @@ GET_STAT = ":GU#"          # Get global status
                            # R: PEC recorded    G: Guiding
                            # S: GPS PPS synced
 GET_TAR_DE = ":Gd#"        # Get target declination
+GET_TAR_DEH = ":Gda#"      # Get target declination (High precision)
 GET_TAR_RA = ":Gr#"        # Get target right ascension
+GET_TAR_RAH = ":Gra#"      # Get target right ascension (High precision)
 GET_TFMT = ":Gc#"          # Get current time format (ret: 24#)
 GET_UOFF = ":GG#"          # Get UTC offset time
 
@@ -160,9 +161,8 @@ ROT_SETHOME = ":rF#"   # Reset rotatore a posizione home
 ROT_GOHOME = ":rC#"    # Muovi rotatore a posizione home
 ROT_CLKWISE = ":r>#"   # Muovi rotatore in senso orario come da comando
 ROT_CCLKWISE = ":r<#"  # Muovi rotatore in senso antiorario come da incremento
-ROT_SETINCR = ":r%d"   # Preset incremento per movimento rotatore (1,2,3)
-ROT_SETPOSP = ":rS+%03d*%02d'%02d" # Set posizione rotatore (+gradi)
-ROT_SETPOSN = ":rS-%03d*%02d'%02d" # Set posizione rotatore (-gradi)
+ROT_SETINCR = ":r%d#"   # Preset incremento per movimento rotatore (1,2,3)
+ROT_SETPOS = ":rS%s%03d*%02d'%02d#" # Set posizione rotatore (+-dd, mm, ss)
 
 ROT_GET = ":rG#"       # Legge posizione rotatore (gradi)
 
@@ -466,7 +466,10 @@ Possibili valori di ritorno:
     def set_ra(self, hours):
         "Imposta ascensione retta oggetto (ore)"
         if hours < 24. and hours >= 0.:
-            cmd = SET_RA % float2ums(hours)
+            _unused, hrs, mins, secs = float2ums(hours, precision=3)
+            isec = int(secs)
+            rest = int((secs-isec)*1000)
+            cmd = SET_RA % (hrs, mins, isec, rest)
             ret = self.send_command(cmd, 1)
         else:
             raise ValueError
@@ -475,10 +478,9 @@ Possibili valori di ritorno:
     def set_alt(self, deg):
         "Imposta altezza oggetto (gradi)"
         if deg >= -90. and deg <= 90.:
-            if deg >= 0:
-                cmd = SET_ALTP%(float2ums(deg))
-            else:
-                cmd = SET_ALTN%(float2ums(-deg))
+            sign, degs, mins, secs = float2ums(deg, precision=3)
+            sign = "+" if sign >= 0 else "-"
+            cmd = SET_ALT%(sign, degs, mins, secs)
             ret = self.send_command(cmd, 1)
         else:
             raise ValueError
@@ -486,8 +488,8 @@ Possibili valori di ritorno:
 
     def set_az(self, deg):
         "Imposta azimut oggetto (0..360 gradi)"
-        if deg >= -0. and deg <= 360.:
-            cmd = SET_AZ%float2ums(deg)[:2]
+        if deg >= 0. and deg <= 360.:
+            cmd = SET_AZ%float2ums(deg)[1:3]
             ret = self.send_command(cmd, 1)
         else:
             raise ValueError
@@ -496,10 +498,11 @@ Possibili valori di ritorno:
     def set_de(self, deg):
         "Imposta declinazione oggetto (gradi)"
         if deg >= -90. and deg <= 90.:
-            if deg >= 0:
-                cmd = SET_DECP%(float2ums(deg))
-            else:
-                cmd = SET_DECN%(float2ums(-deg))
+            sign, degs, mins, secs = float2ums(deg, precision=3)
+            sign = "+" if sign >= 0 else "-"
+            isec = int(secs)
+            rest = int((secs-isec)*1000)
+            cmd = SET_DEC%(sign, degs, mins, isec, rest)
             ret = self.send_command(cmd, 1)
         else:
             raise ValueError
@@ -532,20 +535,16 @@ Possibili valori di ritorno:
 
     def set_lat(self, deg):
         "Imposta latitudine locale (gradi)"
-        if deg >= 0:
-            cmd = SET_LATP%(float2ums(deg)[:2])
-        else:
-            deg = -deg
-            cmd = SET_LATN%(float2ums(deg)[:2])
+        sign, degs, mins, _unused = float2ums(deg)
+        sign = "+" if sign >= 0 else "-"
+        cmd = SET_LAT%(sign, degs, mins)
         return self.send_command(cmd, 1)
 
     def set_lon(self, deg):
         "Imposta longitudine locale (gradi)"
-        if deg >= 0:
-            cmd = SET_LONP%(float2ums(deg)[:2])
-        else:
-            deg = -deg
-            cmd = SET_LONN%(float2ums(deg)[:2])
+        sign, degs, mins, _unused = float2ums(deg)
+        sign = "+" if sign >= 0 else "-"
+        cmd = SET_LON%(sign, degs, mins)
         return self.send_command(cmd, 1)
 
     def set_date(self):
@@ -560,7 +559,7 @@ Possibili valori di ritorno:
     def set_tsid(self):
         "Imposta tempo sidereo da clock PC"
         tsidh = loc_st_now()
-        return self.send_command(SET_TSID%float2ums(tsidh), False)
+        return self.send_command(SET_TSID%float2ums(tsidh)[1:], False)
 
     def set_time(self):
         "Imposta tempo telescopio da clock del PC"
@@ -683,6 +682,10 @@ Possibili valori di ritorno:
         "Sync con valore corrente asc.retta e decl. [No risp.]"
         return self.send_command(SYNC_RADEC, False)
 
+    def sync_taradec(self):
+        "Sync su asc.retta e decl. del target [No risp.]"
+        return self.send_command(SYNC_TARADEC, False)
+
     def move_target(self):
         "Muovi telescopio al target definito. Risposta: vedi mvt?"
         return self.send_command(MOVE_TO, True)
@@ -783,9 +786,14 @@ Possibili valori di ritorno:
         ret = self.send_command(GET_CUR_DE, True)
         return ddmmss_decode(ret, with_sign=True)
 
+    def get_current_deh(self):
+        "Leggi declinazione telescopio (gradi, alta precisione)"
+        ret = self.send_command(GET_CUR_DEH, True)
+        return ddmmss_decode(ret, with_sign=True)
+
     def get_current_ha(self):
         "Calcola angolo orario telescopio (ore)"
-        ret = self.send_command(GET_CUR_RA, True)
+        ret = self.send_command(GET_CUR_RAH, True)
         rah = ddmmss_decode(ret)
         if rah is None:
             return None
@@ -793,6 +801,11 @@ Possibili valori di ritorno:
 
     def get_current_ra(self):
         "Leggi ascensione retta telescopio (ore)"
+        ret = self.send_command(GET_CUR_RA, True)
+        return ddmmss_decode(ret)
+
+    def get_current_rah(self):
+        "Leggi ascensione retta telescopio (ore, alta precisione)"
         ret = self.send_command(GET_CUR_RA, True)
         return ddmmss_decode(ret)
 
@@ -961,9 +974,19 @@ Possibili valori di ritorno:
         ret = self.send_command(GET_TAR_DE, True)
         return ddmmss_decode(ret, with_sign=True)
 
+    def get_target_deh(self):
+        "Leggi declinazione oggetto (gradi, alta precisione)"
+        ret = self.send_command(GET_TAR_DEH, True)
+        return ddmmss_decode(ret, with_sign=True)
+
     def get_target_ra(self):
         "Leggi ascensione retta oggetto (ore)"
         ret = self.send_command(GET_TAR_RA, True)
+        return ddmmss_decode(ret)
+
+    def get_target_rah(self):
+        "Leggi ascensione retta oggetto (ore, alta precisione)"
+        ret = self.send_command(GET_TAR_RAH, True)
         return ddmmss_decode(ret)
 
     def get_timefmt(self):
@@ -1168,10 +1191,9 @@ Possibili valori di ritorno:
 
     def rot_setpos(self, deg):
         "Imposta posizione rotatore (gradi)"
-        if deg >= 0:
-            cmd = ROT_SETPOSP%(float2ums(deg))
-        else:
-            cmd = ROT_SETPOSN%(float2ums(deg))
+        sign, degs, mins, secs = float2ums(deg, precision=3)
+        sign = "+" if sign >= 0 else "-"
+        cmd = ROT_SETPOS%(sign, degs, mins, secs)
         return self.send_command(cmd, 1)
 
     def rot_getpos(self):
@@ -1438,7 +1460,11 @@ class Executor:
                       "gts": (dcom.get_tsid, noargs),
                       "guo": (dcom.get_utcoffset, noargs),
                       "gzt": (dcom.get_az, noargs),
+                      "hdo": (dcom.get_target_deh, noargs),
+                      "hdt": (dcom.get_current_deh, noargs),
                       "hom": (dcom.goto_home, noargs),
+                      "hro": (dcom.get_target_rah, noargs),
+                      "hrt": (dcom.get_current_rah, noargs),
                       "mve": (dcom.move_east, noargs),
                       "mvo": (dcom.move_west, noargs),
                       "mvn": (dcom.move_north, noargs),
@@ -1483,6 +1509,7 @@ class Executor:
                       "sro": (dcom.set_ra, getddmmss),
                       "std": (dcom.set_tsid, noargs),
                       "syn": (dcom.sync_radec, noargs),
+                      "syt": (dcom.sync_taradec, noargs),
                       "trs": (dcom.set_trate, getfloat),
                       "tof": (dcom.track_off, noargs),
                       "ton": (dcom.track_on, noargs),
