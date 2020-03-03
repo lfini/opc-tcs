@@ -175,13 +175,11 @@ def float2ums(value, module=0, precision=0):
     rest = (value-units)*60.
     mins = int(rest)
     rest = (rest-mins)*60.
-    secs = int(rest)
-    rest = (rest-secs)
     if precision:
-        fmt = "%%.%df"%precision
-        frac = fmt%rest
-        secs += float(frac)
+        secs = round(rest, precision)
     else:
+        secs = int(rest)
+        rest = (rest-secs)
         if rest > 0.5:
             secs += 1
     if secs >= 60:

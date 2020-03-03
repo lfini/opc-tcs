@@ -21,9 +21,9 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "2.1"
-__date__ = "Febbraio 2020"
-__author__ = "Luca Fini"
+__version__ = "2.2"
+__date__ = "Marzo 2020"
+__author__ = "L.Fini, L.Naponiello"
 
 class LastErr:
     "Ultimo messaggio di errore"
@@ -93,9 +93,9 @@ GET_ANTIB_RA = ":%BR#"        # Get RA Antibacklash
 GET_AZ = ":GZ#"            # Get telescope azimuth
 GET_ALT = ":GA#"           # Get telescope altitude
 GET_CUR_DE = ":GD#"        # Get current declination
-GET_CUR_DEH = ":GDA#"      # Get current declination (High precision)
+GET_CUR_DEH = ":GDe#"      # Get current declination (High precision)
 GET_CUR_RA = ":GR#"        # Get current right ascension
-GET_CUR_RAH = ":GRA#"      # Get current right ascension (High precision)
+GET_CUR_RAH = ":GRa#"      # Get current right ascension (High precision)
 GET_DB = ":D#"             # Get distance bar
 GET_DATE = ":GC#"          # Get date
 GET_HLIM = ":Gh"           # Get horizont limit
@@ -120,7 +120,7 @@ GET_STAT = ":GU#"          # Get global status
                            # R: PEC recorded    G: Guiding
                            # S: GPS PPS synced
 GET_TAR_DE = ":Gd#"        # Get target declination
-GET_TAR_DEH = ":Gda#"      # Get target declination (High precision)
+GET_TAR_DEH = ":Gde#"      # Get target declination (High precision)
 GET_TAR_RA = ":Gr#"        # Get target right ascension
 GET_TAR_RAH = ":Gra#"      # Get target right ascension (High precision)
 GET_TFMT = ":Gc#"          # Get current time format (ret: 24#)
@@ -351,7 +351,7 @@ def get_version():
     "Riporta informazioni su versione"
     return "telecomm.py - Vers. %s. %s %s"%(__version__, __author__, __date__)
 
-DDMMSS_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})[':](\\d{2})")
+DDMMSS_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})[':](\\d{2}(\\.\\d+)?)")
 DDMM_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})")
 
 def ddmmss_decode(the_str, with_sign=False):
@@ -367,7 +367,7 @@ def ddmmss_decode(the_str, with_sign=False):
         return None
     ddd = int(flds.group(1))
     mmm = int(flds.group(2))
-    sss = int(flds.group(3))
+    sss = float(flds.group(3))
     return (ddd+mmm/60.+sss/3600.)*sgn
 
 def ddmm_decode(the_str, with_sign=False):
@@ -466,9 +466,9 @@ Possibili valori di ritorno:
     def set_ra(self, hours):
         "Imposta ascensione retta oggetto (ore)"
         if hours < 24. and hours >= 0.:
-            _unused, hrs, mins, secs = float2ums(hours, precision=3)
+            _unused, hrs, mins, secs = float2ums(hours, precision=4)
             isec = int(secs)
-            rest = int((secs-isec)*1000)
+            rest = int((secs-isec)*10000)
             cmd = SET_RA % (hrs, mins, isec, rest)
             ret = self.send_command(cmd, 1)
         else:
@@ -498,10 +498,10 @@ Possibili valori di ritorno:
     def set_de(self, deg):
         "Imposta declinazione oggetto (gradi)"
         if deg >= -90. and deg <= 90.:
-            sign, degs, mins, secs = float2ums(deg, precision=3)
+            sign, degs, mins, secs = float2ums(deg, precision=4)
             sign = "+" if sign >= 0 else "-"
             isec = int(secs)
-            rest = int((secs-isec)*1000)
+            rest = int((secs-isec)*10000)
             cmd = SET_DEC%(sign, degs, mins, isec, rest)
             ret = self.send_command(cmd, 1)
         else:
@@ -806,7 +806,7 @@ Possibili valori di ritorno:
 
     def get_current_rah(self):
         "Leggi ascensione retta telescopio (ore, alta precisione)"
-        ret = self.send_command(GET_CUR_RA, True)
+        ret = self.send_command(GET_CUR_RAH, True)
         return ddmmss_decode(ret)
 
     def get_date(self):
@@ -1647,5 +1647,8 @@ def main():
             exe.usage()
 
 if __name__ == "__main__":
-    import readline
+    try:
+        import readline
+    except:
+        pass
     main()

@@ -5,7 +5,6 @@ Test funzioni astronomiche per package OPC
 import time
 from astropy.time import Time, TimeDelta
 import numpy as np
-import matplotlib.pylab as plt
 
 import astro
 
@@ -48,31 +47,37 @@ def test_1tsid(dspec, lon):
     error = abs(tvsid-tmio)
     return [slon, tvsid, tmio, error]
 
-def backandforth(value):
-    ums = astro.float2ums(value, 24, 4)
+def backandforth(value, prec):
+    ums = astro.float2ums(value, precision=prec)
     return astro.ums2float(*ums)
 
 def test_ums():
     "Test conversione decimale / uu mm ss"
-    func = np.vectorize(backandforth)
-    base = np.linspace(-0.5, 24.5, 2000)
-    modbase = np.mod(base, 24)
-    error = func(base)-modbase
-    plt.plot(error)
-    plt.grid()
-    plt.show()
+    base = np.linspace(0, 10, 100000)
+    func = np.vectorize(lambda x: backandforth(x, 3))
+    error = np.abs(func(base)-base)
+    print("Errore massimo di ums2float(float2ums[0..10]) 3 cifre decimali:",np.max(error))
+    func = np.vectorize(lambda x: backandforth(x, 4))
+    error = np.abs(func(base)-base)
+    print("Errore massimo di ums2float(float2ums[0..10]) 4 cifre decimali:",np.max(error))
+    func = np.vectorize(lambda x: backandforth(x, 5))
+    error = np.abs(func(base)-base)
+    print("Errore massimo di ums2float(float2ums[0..10]) 5 cifre decimali:",np.max(error))
 
 def main():
     "Procedura di test"
-    print("Test conversione g/m/s:")
+    print("\n")
+    input("1) Test conversione g/m/s (invio)")
     test_ums()
-    print("Test data giuliana:")
+    print("\n")
+    input("2) Test data giuliana (invio)")
     print("a,   m,   g,   h,   m,   s, utc_offset, jd.vero,  jd.mio,  errore")
     for dspec in TEST_JD:
         result = test_1jd(dspec)
         print(*(dspec+result))
 
-    print("Test tempo sidereo:")
+    print("\n")
+    input("Test tempo sidereo (invio)")
     print("a,   m,   g,   h,   m,   s, utc_offset, lon(hour), tsid.vero,  tsid.mio,  errore")
     for dspec in TEST_JD:
         for lon in LON_RAD:
@@ -82,6 +87,7 @@ def main():
     gmtime = time.gmtime()
     gmspec = list(gmtime)[:6]+[0, 0]
 
+    print("\n")
     print("Tempo sidereo attuale per Greenwich")
     ret = test_1tsid(gmspec, 0)
     tsidloc = astro.loc_st_now(0)
