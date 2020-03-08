@@ -3,7 +3,7 @@ Funzioni di tipo astronomico per GUI OPC
 """
 
 # Le funzioni sono implementate direttamente per dimunuire il numero
-# di dipendenze del package. Per verificare la correttezza è stato sviluppata
+# di dipendenze del package. Per verificare la correttezza usare
 # la procedura: astrotest.py
 #
 
@@ -17,10 +17,6 @@ Funzioni di tipo astronomico per GUI OPC
 
 # HA = LTS - AR
 
-# sin(EL) = sin(DEC)sin(LAT)+cos(DEC)*cos(LAT)*cos(HA)
-# sin(AZ) = cos(DEC)sin(HA)/cos(EL)
-# cos(AZ) = (sin(DEC) - sin(LAT)sin(EL))/cos(LAT)/cos(EL)
-
 # Coordinate Osservatorio Polifunzionale del Chianti
 #
 # Latitudine: 43g31'24" N   = 43.52333333333333 deg  = 0.7596254681096652 rad
@@ -30,7 +26,7 @@ Funzioni di tipo astronomico per GUI OPC
 from __future__ import print_function
 
 import time
-from math import sin, cos, sqrt, asin, acos, pi, fmod
+from math import sin, cos, sqrt, asin, atan2, pi, fmod
 
 DEG_TO_RAD = 0.017453292519943295   # PI/180.
 RAD_TO_DEG = 57.29577951308232      # 180./PI
@@ -41,6 +37,8 @@ HOUR_TO_RAD = 0.2617993877991494
 RAD_TO_HOUR = 3.8197186342054885
 TSEC_TO_RAD = 7.27220521664304e-05  # secondi (tempo) in radianti
 RAD_TO_TSEC = 13750.987083139758
+
+PI2 = 2*pi
 
 TCIV_TO_TSID = 1.0027378956049176  # conv. intervallo tempo civile in sidereo
 
@@ -66,6 +64,7 @@ def jul_date(year, mon, day, hour, mins, secs, utc_offset=0):
 
 #   tsid_grnw usa una formula semplificata con errore 0.1 sec per secolo
 #   vedi: http://aa.usno.navy.mil/faq/docs/GAST.php
+
 def tsid_grnw(year, mon, day, hour, mins, secs, utc_offset=0):
     "Calcolo tempo sidereo medio di Greenwhich"
     jd2000 = jul_date(year, mon, day, hour, mins, secs, utc_offset)-2451545.0
@@ -89,19 +88,47 @@ def loc_st_now(lon_rad=OPC.lon_rad):
     return loc_st(loct[0], loct[1], loct[2], loct[3],
                   loct[4], loct[5], utc_offset, lon_rad)
 
-def az_coords(ha_rad, dec_rad):
-    "Converte coordinate equatoriali in altoazimutali"
-    sin_ha = sin(ha_rad)
-    sin_el = sin(dec_rad)*OPC.sin_lat+cos(dec_rad)*OPC.cos_lat*cos(ha_rad)
+# sin(ALT) = sin(DEC)*sin(LAT)+cos(DEC)*cos(LAT)*cos(HA)
+# ALT = asin(ALT) 
+# cos(ALT) = sqrt(1.-sin(ALT)**2)
+# sin(AZ) = cos(DEC)sin(HA)/cos(EL)
+# cos(AZ) = (sin(DEC)-sin(LAT)sin(ALT))/(cos(LAT)cos(ALT))
+# A = -asin(A) % (2*pi)
+
+def az_coords(ha_rad, de_rad):
+    "Converte coordinate equatoriali in altoazimutali (tutto in radianti)"
+    sin_de = sin(de_rad)
+    sin_el = sin_de*OPC.sin_lat+cos(de_rad)*OPC.cos_lat*cos(ha_rad)
     cos_el = sqrt(1.-sin_el*sin_el)
-#   sin_az = cos(dec_rad)*sin_ha/cos_el
-    cos_az = (sin(dec_rad)-OPC.sin_lat*sin_el)/OPC.cos_lat/cos_el
+    sin_ha = sin(ha_rad)
+    sin_az = -cos(de_rad)*sin_ha/cos_el
+    cos_az = (sin_de-OPC.sin_lat*sin_el)/(OPC.cos_lat*cos_el)
     el_rad = asin(sin_el)
-    if sin_ha < 0.0:
-        az_rad = acos(cos_az)
-    else:
-        az_rad = 2.*pi-acos(cos_az)
+    az_rad = atan2(sin_az, cos_az)%PI2
     return az_rad, el_rad
+
+# sin(DEC) = sin(ALT)sin(LAT)+cos(ALT)cos(LAT)cos(AZ)
+
+# cos(DEC) = sqrt(1-sin(DEC)**2)
+
+# sin(HA) = -cos(ALT)sin(AZ)/cos(DEC)
+
+# cos(HA) = (sin(ALT)-sin(DEC)sin(LAT))/(cos(DEC)cos(LAT)
+
+# DEC = asin(sin(DEC)
+# HA  = atan2(sin(HA)/cos(HA))
+
+def eq_coords(az_rad, el_rad):
+    "Converte coordinate altoazimutali in equatoriali (tutto in radianti)"
+    cos_el = cos(el_rad)
+    sin_el = sin(el_rad)
+    sin_de = sin_el*OPC.sin_lat+cos_el*OPC.cos_lat*cos(az_rad)
+    cos_de = sqrt(1.-sin_de*sin_de)
+    sin_ha = -sin(az_rad)*cos_el/cos_de
+    cos_ha = (sin_el-sin_de*OPC.sin_lat)/(cos_de*OPC.cos_lat)
+    ha_rad = atan2(sin_ha, cos_ha)
+    de_rad = asin(sin_de)
+    return ha_rad, de_rad
 
 def normalize_angle(angle, pi2):
     "Porta angolo in [0 - pi2)"
@@ -133,11 +160,11 @@ Riporta (delta, sign)
     return delta, sign
 
 def deg2rad(deg):
-    "Convert degrees (float) into radians"
+    "Converte gradi (float) in radianti"
     return deg*DEG_TO_RAD
 
 def ums2float(sign, units, mins, secs):
-    "Convert units (sign, unit, mins, secs) into float"
+    "Converte unità sessagesimali (sign, unit, mins, secs) in float"
     if mins < 0 or mins > 59:
         raise Exception("DMS error")
     if secs < 0 or secs >= 60.0:
@@ -145,28 +172,28 @@ def ums2float(sign, units, mins, secs):
     return sign*(units+mins/60.+secs/3600.)
 
 def hms2deg(sign, hour, mins, secs):
-    "Convert hours (hour, mins, secs) into degrees (float)"
+    "Converte ore sessagesimali (hour, mins, secs) in gradi (float)"
     return ums2float(sign, hour, mins, secs)*HOUR_TO_DEG
 
 def hms2rad(sign, hour, mins, secs):
-    "Convert hours (sign, hour, mins, secs) into radians"
+    "Convert ore sessagesimali (sign, hour, mins, secs) in radianti"
     return ums2float(sign, hour, mins, secs)*HOUR_TO_RAD
 
 def dms2rad(sign, deg, mins, secs):
-    "Convert (sign, deg, mins, secs) in radians"
+    "Converte  gradi sessagesimali (sign, deg, mins, secs) in radianti"
     return ums2float(sign, deg, mins, secs)*DEG_TO_RAD
 
 def rad2deg(rad):
-    "Convert radians (float) into degrees (float)"
+    "Converte radianti (float) in gradi (float)"
     return rad*RAD_TO_DEG
 
 def rad2dms(rad, module=0, precision=0):
-    "Convert radians (float) into degrees (sign, deg, mins, secs)"
+    "Converte radianti (float) in gradi sessagesimali (sign, deg, mins, secs)"
     deg = rad*RAD_TO_DEG
     return float2ums(deg, module, precision)
 
 def float2ums(value, module=0, precision=0):
-    "Convert float value into (sign, units, minutes, secs, frac)"
+    "Converte valore float in sessagesimale (sign, units, minutes, secs, frac)"
     if module:
         value %= module
     sign = 1 if value >= 0.0 else -1

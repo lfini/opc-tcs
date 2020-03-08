@@ -21,7 +21,7 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "2.2"
+__version__ = "2.3"
 __date__ = "Marzo 2020"
 __author__ = "L.Fini, L.Naponiello"
 
