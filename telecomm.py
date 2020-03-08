@@ -733,7 +733,7 @@ Possibili valori di ritorno:
         "Ferma movimento in direzione sud"
         return self.send_command(STOP_DIR%"s", False)
 
-    def pulse_guide_est(self, dtime):
+    def pulse_guide_east(self, dtime):
         "Movimento ad impulso in direzione est (dtime=20-16399)"
         if dtime < 20 or dtime > 16399:
             return None
@@ -1471,7 +1471,7 @@ class Executor:
                       "mvs": (dcom.move_south, noargs),
                       "mvt": (dcom.move_target, noargs),
                       "par": (dcom.park, noargs),
-                      "pge": (dcom.pulse_guide_est, getint),
+                      "pge": (dcom.pulse_guide_east, getint),
                       "pgo": (dcom.pulse_guide_west, getint),
                       "pgn": (dcom.pulse_guide_north, getint),
                       "pgs": (dcom.pulse_guide_south, getint),
