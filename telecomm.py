@@ -1,5 +1,10 @@
-"""
-Funzioni di comunicazione per controllo telescopio OPC
+"""Funzioni di comunicazione per controllo telescopio OPC
+
+Implementa i codici LX200 specifici per OnStep
+
+Uso interattivo:
+
+      python telcomm.py [-dhvV]
 
 Implementa i codici LX200 specifici per OnStep
 
@@ -11,6 +16,13 @@ Dove:
       -d  Collegamento al simulatore (IP: 127.0.0.1, Port: 9753)
       -v  Modo verboso (visualizza protocollo)
       -V  Mostra versione ed esci
+
+Il file puo essere importato come modulo.
+
+Classi definite
+---------------
+
+TeleCommunicator:  Invio comandi LX200 al telescopio
 """
 
 import sys
@@ -21,13 +33,10 @@ import configure as conf
 
 from astro import OPC, float2ums, loc_st_now
 
-__version__ = "2.3"
+__version__ = "2.4"
 __date__ = "Marzo 2020"
 __author__ = "L.Fini, L.Naponiello"
 
-class LastErr:
-    "Ultimo messaggio di errore"
-    txt = ""
                                  # Comandi definiti
                                  # Comandi di preset
 SET_ALT = ":Sa%s%02d*%02d'%02d#" # Set altezza target (+-dd,mm,ss)
@@ -46,26 +55,32 @@ SET_TRATE = ":ST%08.5f#"         # Set freq. di tracking (formato da commenti ne
 SET_TSID = ":SS%02d:%02d:%02d#"  # Set tempo sidereo: hh, mm, ss
 SET_UOFF = ":SG%s%04.1f#"        # Set UTC offset (UTC = LocalTime+Offset)
 
+                                 # Comandi set slew rate
+SET_SLEW1 = ":RA%.1f#"           # Imposta rate asse 1 a dd.d gradi/sec
+SET_SLEW2 = ":RE%.1f#"           # Imposta rate asse 2 a dd.d gradi/sec
+SET_SLEW = ":R%s#"               # Imposta slew: 0-9 / G=2, C=5, M=6, F=7, S=8
+
+SIDCLK_INCR = ":T+#"             # Incr. master sidereal clock di 0.02 Hz (stored in EEPROM)
+SIDCLK_DECR = ":T-#"             # Decr. master sidereal clock di 0.02 Hz (stored in EEPROM)
+SIDCLK_RESET = ":TR#"            # Reset master sidereal clock
+
 TRACK_ON = ":Te#"                # Abilita tracking
 TRACK_OFF = ":Td#"               # Disabilita tracking
 ONTRACK = ":To#"                 # Abilita "On Track"
 TRACKR_ENB = ":Tr#"              # Abilita tracking con rifrazione
 TRACKR_DIS = ":Tn#"              # Disabilita tracking con rifrazione
                                  # return: 0 failure, 1 success
-TRACK_INCR = ":T+#"              # Incr. master sidereal clock di 0.02 Hz (stored in EEPROM)
-TRACK_DECR = ":T-#"              # Decr. master sidereal clock di 0.02 Hz (stored in EEPROM)
 TRACK_KING = ":TK#"              # Tracking rate = king (include rifrazione)
 TRACK_LUNAR = ":TL#"             # Tracking rate = lunar
 TRACK_SIDER = ":TQ#"             # Tracking rate = sidereal
 TRACK_SOLAR = ":TS#"             # Tracking rate = solar
-TRACK_RESET = ":TR#"             # Reset master sidereal clock
                                  # return:  None
 TRACK_ONE = ":T1#"               # Track singolo asse (Disabilita Dec tracking)
 TRACK_TWO = ":T2#"               # Track due assi
 
                                  # Comandi di movimento
-MOVE_TO = ":MS#"                 # Muovi a target definito
-MOVE_DIR = ":M%s#"               # Muovi ad est/ovest/nord/sud
+MOVE_TO = ":MS#"                 # Muove a target definito
+MOVE_DIR = ":M%s#"               # Muove ad est/ovest/nord/sud
 STOP_DIR = ":Q%s#"               # Stop movimento ad est/ovest/nord/sud
 STOP = ":Q#"                     # Stop telescopio
 
@@ -136,10 +151,10 @@ GET_TEMP = ":ZT%d#"        # Get temperature from sensor n (return nn.n)
 
 FOC_SELECT = ":%sA%s#" # Seleziona fuocheggiatore (1/2)
 
-FOC_MOVEIN = ":%s+#"   # Muovi fuocheggiatore verso obiettivo
-FOC_MOVEOUT = ":%s-#"  # Muovi fuocheggiatore via da obiettivo
+FOC_MOVEIN = ":%s+#"   # Muove fuocheggiatore verso obiettivo
+FOC_MOVEOUT = ":%s-#"  # Muove fuocheggiatore via da obiettivo
 FOC_STOP = ":%sQ#"     # Stop movimento fuocheggiatore
-FOC_ZERO = ":%sZ#"     # Muovi in posizione zero
+FOC_ZERO = ":%sZ#"     # Muove in posizione zero
 FOC_FAST = ":%sF#"     # Imposta movimento veloce
 FOC_SETR = ":%sR%04d#" # Imposta posizione relativa (micron)
 FOC_SLOW = ":%sS#"     # Imposta movimento lento
@@ -147,37 +162,24 @@ FOC_SETA = ":%sS%04d#" # Imposta posizione assoluta (micron)
 FOC_RATE = ":%s%1d"    # Imposta velocità (1,2,3,4)
 
 GET_FOC_ACT = ":%sA#"  # Fuocheggiatore attivo (ret: 0/1)
-GET_FOC_POS = ":%sG#"  # Leggi posizione corrente (+-ddd)
-GET_FOC_MIN = ":%sI#"  # Leggi posizione minima
-GET_FOC_MAX = ":%sM#"  # Leggi posizione minima
-GET_FOC_STAT = ":%sT#" # Leggi stato corrente (M: moving, S: stop)
+GET_FOC_POS = ":%sG#"  # Legge posizione corrente (+-ddd)
+GET_FOC_MIN = ":%sI#"  # Legge posizione minima
+GET_FOC_MAX = ":%sM#"  # Legge posizione minima
+GET_FOC_STAT = ":%sT#" # Legge stato corrente (M: moving, S: stop)
 
 ROT_SETCONT = ":rc#"   # Imposta movimento continuo
 ROT_ENABLE = ":r+#"    # Abilita rotatore
 ROT_DISABLE = ":r-#"   # Disabilita rotatore
-ROT_TOPAR = ":rP#"     # Muovi rotatore ad angolo parallattico
+ROT_TOPAR = ":rP#"     # Muove rotatore ad angolo parallattico
 ROT_REVERS = ":rR#"    # Inverte direzione rotatore
 ROT_SETHOME = ":rF#"   # Reset rotatore a posizione home
-ROT_GOHOME = ":rC#"    # Muovi rotatore a posizione home
-ROT_CLKWISE = ":r>#"   # Muovi rotatore in senso orario come da comando
-ROT_CCLKWISE = ":r<#"  # Muovi rotatore in senso antiorario come da incremento
+ROT_GOHOME = ":rC#"    # Muove rotatore a posizione home
+ROT_CLKWISE = ":r>#"   # Muove rotatore in senso orario come da comando
+ROT_CCLKWISE = ":r<#"  # Muove rotatore in senso antiorario come da incremento
 ROT_SETINCR = ":r%d#"   # Preset incremento per movimento rotatore (1,2,3)
 ROT_SETPOS = ":rS%s%03d*%02d'%02d#" # Set posizione rotatore (+-dd, mm, ss)
 
 ROT_GET = ":rG#"       # Legge posizione rotatore (gradi)
-
-
-TRACKING_INFO = """
-Variabili relative alle frequenze di Tracking:
-
-#define StepsPerDegreeAxis1  56000.0                               Config.Classic.h
-#define StepsPerSecondAxis1  ((double)StepsPerDegreeAxis1/240.0)   Globals.h
-long siderealInterval       = 15956313L;  >>> EE_siderealInterval  Globals.h
-     Number of 16MHz clocks in one sidereal second
-long masterSiderealInterval = siderealInterval;                    Globals.h
-long SiderealRate = siderealInterval/StepsPerSecondAxis1           Globals.h
-     This is the time between steps for sidereal tracking
-"""
 
 ERRCODE = "Codice di errore"
 
@@ -349,86 +351,99 @@ CODICI_ONSTEP_GX = """
 
 def get_version():
     "Riporta informazioni su versione"
-    return "telecomm.py - Vers. %s. %s %s"%(__version__, __author__, __date__)
+    return "telecomm.py - Vers. %s. %s. %s"%(__version__, __author__, __date__)
 
 DDMMSS_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})[':](\\d{2}(\\.\\d+)?)")
 DDMM_RE = re.compile("[+-]?(\\d{2,3})[*:](\\d{2})")
 
-def ddmmss_decode(the_str, with_sign=False):
-    "Decodifica stringa DD.MM.SS. Riporta float"
-    if the_str is None:
-        return None
-    if with_sign:
-        sgn = -1 if the_str[0] == "-" else 1
-    else:
-        sgn = 1
-    flds = DDMMSS_RE.match(the_str)
-    if not flds:
-        return None
-    ddd = int(flds.group(1))
-    mmm = int(flds.group(2))
-    sss = float(flds.group(3))
-    return (ddd+mmm/60.+sss/3600.)*sgn
-
-def ddmm_decode(the_str, with_sign=False):
-    "Decodifica stringa DD.MM. Riporta float"
-    if the_str is None:
-        return None
-    if with_sign:
-        sgn = -1 if the_str[0] == "-" else 1
-    else:
-        sgn = 1
-    flds = DDMM_RE.match(the_str)
-    if not flds:
-        return None
-    ddd = int(flds.group(1))
-    mmm = int(flds.group(2))
-    return (ddd+mmm/60.)*sgn
-
-def float_decode(the_str):
-    "Decodifica stringa x.xxxx"
-    try:
-        val = float(the_str)
-    except ValueError as excp:
-        val = float('nan')
-        LastErr.txt = str(excp)
-    return val
-
 
 class TeleCommunicator:
     "Gestione comunicazione con server telescopio (LX200)"
-    def __init__(self, ipadr, port, timeout=0.5, verbose=False):
+
+    def __init__(self, ipadr, port, timeout=0.5):
+        """Inizializzazione TeleCommunicator:
+
+ipaddr:  Indirizzo IP telescopio (str)
+port:    Port IP telescopio (int)
+timeout: Timeout comunicazione in secondi (float)
+"""
         self.connected = False
         self.ipadr = ipadr
         self.port = port
         self.timeout = timeout
-        self.verbose = verbose
+        self._errmsg = ""
+        self._command = ""
+        self._reply = ""
 
-    def send_command(self, command, expected):
+    def _float_decode(self, the_str):
+        "Decodifica stringa x.xxxx"
+        try:
+            val = float(the_str)
+        except ValueError:
+            val = float('nan')
+            self._errmsg = "Errore decodifica valore float"
+        return val
+
+    def _ddmmss_decode(self, the_str, with_sign=False):
+        "Decodifica stringa DD.MM.SS. Riporta float"
+        if the_str is None:
+            self._errmsg = "Valore mancante"
+            return None
+        if with_sign:
+            sgn = -1 if the_str[0] == "-" else 1
+        else:
+            sgn = 1
+        flds = DDMMSS_RE.match(the_str)
+        try:
+            ddd = int(flds.group(1))
+            mmm = int(flds.group(2))
+            sss = float(flds.group(3))
+        except:
+            self._errmsg = "Errore decodifica valore dd.mm.ss"
+            return None
+        return (ddd+mmm/60.+sss/3600.)*sgn
+
+    def _ddmm_decode(self, the_str, with_sign=False):
+        "Decodifica stringa DD.MM. Riporta float"
+        if the_str is None:
+            self._errmsg = "Valore mancante"
+            return None
+        if with_sign:
+            sgn = -1 if the_str[0] == "-" else 1
+        else:
+            sgn = 1
+        flds = DDMM_RE.match(the_str)
+        if not flds:
+            self._errmsg = "Errore decodifica valore dd.mm"
+            return None
+        ddd = int(flds.group(1))
+        mmm = int(flds.group(2))
+        return (ddd+mmm/60.)*sgn
+
+    def __send_cmd(self, command, expected):
         """
 Invio comandi. expected == True: prevista risposta.
 
 Possibili valori di ritorno:
-    '':      nessuna risposta attesa
+    '':      Nessuna risposta attesa
     'xxxx':  Stringa di ritorno da OnStep
     1/0:     Successo/fallimento da OnStep
     None:    Risposta prevista ma non ricevuta"""
-        LastErr.txt = ""
-        if self.verbose:
-            print("CMD-", command)
+        self._errmsg = ""
+        self._reply = ""
+        self._command = command
         skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         skt.settimeout(self.timeout)
         try:
             skt.connect((self.ipadr, self.port))
         except IOError:
-            if self.verbose:
-                print("Tel. non connesso")
+            self._errmsg = "Tel. non connesso"
             return None
         try:
             skt.sendall(command.encode("ascii"))
         except socket.timeout:
             skt.close()
-            LastErr.txt = "Timeout"
+            self._errmsg = "Timeout"
             return None
         ret = b""
         repl = None
@@ -441,27 +456,27 @@ Possibili valori di ritorno:
                     ret += nchr
                     if nchr == b"#":
                         break
-            except (socket.timeout, IOError) as excp:
-                LastErr.txt = str(excp)
+            except (socket.timeout, IOError):
+                self._errmsg = "Risposta senza terminatore #"
             finally:
-                if self.verbose:
-                    print("RET-", ret)
                 skt.close()
                 repl = ret.decode("ascii")
-                if repl and repl[-1] == "#":
-                    repl = repl[:-1]
+                self._reply = repl
         else:
             repl = ""
         return repl
 
-    def set_verbose(self):
-        "Abilita/disabilita modo verboso"
-        self.verbose = not self.verbose
-        if self.verbose:
-            ret = "Abilitato modo verboso"
-        else:
-            ret = "Disbilitato modo verboso"
-        return ret
+    def last_command(self):
+        "Riporta ultimo comando LX200"
+        return self._command
+
+    def last_reply(self):
+        "Riporta ultima risposta LX200"
+        return self._reply
+
+    def last_error(self):
+        "Riporta ultimo messaggio di errore"
+        return self._errmsg
 
     def set_ra(self, hours):
         "Imposta ascensione retta oggetto (ore)"
@@ -470,7 +485,7 @@ Possibili valori di ritorno:
             isec = int(secs)
             rest = int((secs-isec)*10000)
             cmd = SET_RA % (hrs, mins, isec, rest)
-            ret = self.send_command(cmd, 1)
+            ret = self.__send_cmd(cmd, 1)
         else:
             raise ValueError
         return ret
@@ -481,7 +496,7 @@ Possibili valori di ritorno:
             sign, degs, mins, secs = float2ums(deg, precision=3)
             sign = "+" if sign >= 0 else "-"
             cmd = SET_ALT%(sign, degs, mins, secs)
-            ret = self.send_command(cmd, 1)
+            ret = self.__send_cmd(cmd, 1)
         else:
             raise ValueError
         return ret
@@ -490,7 +505,7 @@ Possibili valori di ritorno:
         "Imposta azimut oggetto (0..360 gradi)"
         if deg >= 0. and deg <= 360.:
             cmd = SET_AZ%float2ums(deg)[1:3]
-            ret = self.send_command(cmd, 1)
+            ret = self.__send_cmd(cmd, 1)
         else:
             raise ValueError
         return ret
@@ -503,7 +518,7 @@ Possibili valori di ritorno:
             isec = int(secs)
             rest = int((secs-isec)*10000)
             cmd = SET_DEC%(sign, degs, mins, isec, rest)
-            ret = self.send_command(cmd, 1)
+            ret = self.__send_cmd(cmd, 1)
         else:
             raise ValueError
         return ret
@@ -512,7 +527,7 @@ Possibili valori di ritorno:
         "Imposta altezza massima raggiungibile (60..90 gradi)"
         if deg >= 60 and deg <= 90:
             cmd = SET_MAXA%deg
-            ret = self.send_command(cmd, 1)
+            ret = self.__send_cmd(cmd, 1)
         else:
             raise ValueError
         return ret
@@ -524,28 +539,28 @@ Possibili valori di ritorno:
                 cmd = SET_MNAP%(deg)
             else:
                 cmd = SET_MNAN%(-deg)
-            ret = self.send_command(cmd, 1)
+            ret = self.__send_cmd(cmd, 1)
         else:
             raise ValueError
         return ret
 
     def set_trate(self, rate):
-        "Imposta tracking rate (Hz)"
-        return self.send_command(SET_TRATE%rate, True)
+        "Imposta frequenza di tracking (Hz)"
+        return self.__send_cmd(SET_TRATE%rate, True)
 
     def set_lat(self, deg):
         "Imposta latitudine locale (gradi)"
         sign, degs, mins, _unused = float2ums(deg)
         sign = "+" if sign >= 0 else "-"
         cmd = SET_LAT%(sign, degs, mins)
-        return self.send_command(cmd, 1)
+        return self.__send_cmd(cmd, 1)
 
     def set_lon(self, deg):
         "Imposta longitudine locale (gradi)"
         sign, degs, mins, _unused = float2ums(deg)
         sign = "+" if sign >= 0 else "-"
         cmd = SET_LON%(sign, degs, mins)
-        return self.send_command(cmd, 1)
+        return self.__send_cmd(cmd, 1)
 
     def set_date(self):
         "Imposta data da clock del PC"
@@ -554,12 +569,12 @@ Possibili valori di ritorno:
         tt0 = time.mktime(tuple(ttt))
         ttt = time.localtime(tt0)
         cmd = SET_DATE%(ttt[1], ttt[2], ttt[0]-2000)
-        return self.send_command(cmd, 1)
+        return self.__send_cmd(cmd, 1)
 
     def set_tsid(self):
         "Imposta tempo sidereo da clock PC"
         tsidh = loc_st_now()
-        return self.send_command(SET_TSID%float2ums(tsidh)[1:], False)
+        return self.__send_cmd(SET_TSID%float2ums(tsidh)[1:], False)
 
     def set_time(self):
         "Imposta tempo telescopio da clock del PC"
@@ -576,71 +591,86 @@ Possibili valori di ritorno:
         else:
             sgn = "+"
         cmd2 = SET_UOFF%(sgn, gmto)
-        ret1 = self.send_command(cmd1, 1)
-        ret2 = self.send_command(cmd2, 1)
+        ret1 = self.__send_cmd(cmd1, 1)
+        ret2 = self.__send_cmd(cmd2, 1)
         try:
             ret = ret1+ret2
         except TypeError:
-            LastErr.txt = "Invalid return (%s+%s)"%(str(ret1), str(ret2))
+            self._errmsg = "Invalid return (%s+%s)"%(str(ret1), str(ret2))
             ret = None
         return ret
 
-    def _set_onstep_par(self, code, str_val):
+    def set_slew_ha(self, degsec):
+        "Imposta velocità slew asse orario in gradi/sec"
+        cmd = SET_SLEW1%degsec
+        return self.__send_cmd(cmd, False)
+
+    def set_slew_dec(self, degsec):
+        "Imposta velocità slew asse declinazione in gradi/sec"
+        cmd = SET_SLEW2%degsec
+        return self.__send_cmd(cmd, False)
+
+    def set_slew(self, spec):
+        "Imposta velocità a G:Guide, C:Center, M:Move, F:Fast, S:Slew o 0-9"
+        cmd = SET_SLEW%spec
+        return self.__send_cmd(cmd, False)
+
+    def __set_os_par(self, code, str_val):
         "Imposta parametro on step generico"
         cmd = SET_ONSTEP_V%(code, str_val)
-        return self.send_command(cmd, True)
+        return self.__send_cmd(cmd, True)
 
     def set_onstep_00(self, value):
         "Imposta OnStep indexAxis1 [integer]"
-        return self._set_onstep_par("00", "%d"%value)
+        return self.__set_os_par("00", "%d"%value)
 
     def set_onstep_01(self, value):
         "Imposta OnStep indexAxis2 [integer]"
-        return self._set_onstep_par("01", "%d"%value)
+        return self.__set_os_par("01", "%d"%value)
 
     def set_onstep_02(self, value):
         "Imposta OnStep altCor [integer]"
-        return self._set_onstep_par("02", "%d"%value)
+        return self.__set_os_par("02", "%d"%value)
 
     def set_onstep_03(self, value):
         "Imposta OnStep azmCor [integer]"
-        return self._set_onstep_par("03", "%d"%value)
+        return self.__set_os_par("03", "%d"%value)
 
     def set_onstep_04(self, value):
         "Imposta OnStep doCor [integer]"
-        return self._set_onstep_par("04", "%d"%value)
+        return self.__set_os_par("04", "%d"%value)
 
     def set_onstep_05(self, value):
         "Imposta OnStep pdCor [integer]"
-        return self._set_onstep_par("05", "%d"%value)
+        return self.__set_os_par("05", "%d"%value)
 
     def set_onstep_06(self, value):
         "Imposta OnStep dfCor [integer]"
-        return self._set_onstep_par("06", "%d"%value)
+        return self.__set_os_par("06", "%d"%value)
 
     def set_onstep_07(self, value):
         "Imposta OnStep ffCor (inutilizz. per montatura equ) [integer]"
-        return self._set_onstep_par("07", "%d"%value)
+        return self.__set_os_par("07", "%d"%value)
 
     def set_onstep_08(self, value):
         "Imposta OnStep tfCor [integer]"
-        return self._set_onstep_par("08", "%d"%value)
+        return self.__set_os_par("08", "%d"%value)
 
     def set_onstep_92(self, value):
         "Imposta OnStep MaxRate (max. accelerazione) [integer]"
-        return self._set_onstep_par("92", "%d"%value)
+        return self.__set_os_par("92", "%d"%value)
 
     def set_onstep_93(self, value):
         "Imposta OnStep MaxRate preset (max. accelerazione) [1-5: 200%,150%,100%,75%,50%]"
         if  0 < value < 6:
-            return self._set_onstep_par("93", "%d"%value)
+            return self.__set_os_par("93", "%d"%value)
         return "0"
 
     def set_onstep_95(self, value):
         "Imposta OnStep autoMeridianFlip [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
-        return self._set_onstep_par("95", "%d"%value)
+        return self.__set_os_par("95", "%d"%value)
 
     def set_onstep_96(self, value):
         "Imposta OnStep preferredPierSide [E, W, B (best)]"
@@ -650,187 +680,180 @@ Possibili valori di ritorno:
             return "0"
         if value not in ("E", "W", "B"):
             return "0"
-        return self._set_onstep_par("96", value)
+        return self.__set_os_par("96", value)
 
     def set_onstep_97(self, value):
         "Imposta OnStep cicalino [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
-        return self._set_onstep_par("97", "%d"%value)
+        return self.__set_os_par("97", "%d"%value)
 
     def set_onstep_98(self, value):
-        "Imposta OnStep pausa a HOME all'inversione meridiano [0: disabilita, 1: abilita]"
+        "Imposta pausa a HOME all'inversione meridiano [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
-        return self._set_onstep_par("98", "%d"%value)
+        return self.__set_os_par("98", "%d"%value)
 
     def set_onstep_99(self, value):
         "Imposta OnStep continua dopo pausa a HOME [0: disabilita, 1: abilita]"
         if value not in (0, 1):
             return "0"
-        return self._set_onstep_par("99", "%d"%value)
+        return self.__set_os_par("99", "%d"%value)
 
     def set_onstep_e9(self, value):
         "Imposta OnStep minuti dopo il meridiano EST [integer]"
-        return self._set_onstep_par("E9", "%d"%value)
+        return self.__set_os_par("E9", "%d"%value)
 
     def set_onstep_ea(self, value):
         "Imposta OnStep minuti dopo il meridiano OVEST [integer]"
-        return self._set_onstep_par("EA", "%d"%value)
+        return self.__set_os_par("EA", "%d"%value)
 
     def sync_radec(self):
-        "Sync con valore corrente asc.retta e decl. [No risp.]"
-        return self.send_command(SYNC_RADEC, False)
+        "Sincronizza con coordinate oggetto target"
+        return self.__send_cmd(SYNC_RADEC, False)
 
     def sync_taradec(self):
-        "Sync su asc.retta e decl. del target [No risp.]"
-        return self.send_command(SYNC_TARADEC, False)
+        "Sincronizza con coordinate oggetto corrente dal database"
+        return self.__send_cmd(SYNC_TARADEC, False)
 
     def move_target(self):
-        "Muovi telescopio al target definito. Risposta: vedi mvt?"
-        return self.send_command(MOVE_TO, True)
+        "Muove telescopio al target definito. Risposta: vedi mvt?"
+        return self.__send_cmd(MOVE_TO, True)
 
     def move_east(self):
-        "Muovi telescopio direz. est"
-        return self.send_command(MOVE_DIR%"e", False)
+        "Muove telescopio direz. est"
+        return self.__send_cmd(MOVE_DIR%"e", False)
 
     def move_west(self):
-        "Muovi telescopio direz. ovest"
-        return self.send_command(MOVE_DIR%"w", False)
+        "Muove telescopio direz. ovest"
+        return self.__send_cmd(MOVE_DIR%"w", False)
 
     def move_north(self):
-        "Muovi telescopio direz. nord"
-        return self.send_command(MOVE_DIR%"n", False)
+        "Muove telescopio direz. nord"
+        return self.__send_cmd(MOVE_DIR%"n", False)
 
     def move_south(self):
-        "Muovi telescopio direz. sud"
-        return self.send_command(MOVE_DIR%"s", False)
-
-    def set_rate(self, rate):
-        "Imposta rate a Guide, C?, Move, Slew o 0-9"
-        rrt = rate[0].upper()
-        if rrt in "GCMS0123456789":
-            return self.send_command(SET_TRATE+rrt, False)
-        return None
+        "Muove telescopio direz. sud"
+        return self.__send_cmd(MOVE_DIR%"s", False)
 
     def stop(self):
         "Ferma movimento telescopio"
-        return self.send_command(STOP, False)
+        return self.__send_cmd(STOP, False)
 
     def stop_east(self):
         "Ferma movimento in direzione est"
-        return self.send_command(STOP_DIR%"e", False)
+        return self.__send_cmd(STOP_DIR%"e", False)
 
     def stop_west(self):
         "Ferma movimento in direzione ovest"
-        return self.send_command(STOP_DIR%"w", False)
+        return self.__send_cmd(STOP_DIR%"w", False)
 
     def stop_north(self):
         "Ferma movimento in direzione nord"
-        return self.send_command(STOP_DIR%"n", False)
+        return self.__send_cmd(STOP_DIR%"n", False)
 
     def stop_south(self):
         "Ferma movimento in direzione sud"
-        return self.send_command(STOP_DIR%"s", False)
+        return self.__send_cmd(STOP_DIR%"s", False)
 
     def pulse_guide_east(self, dtime):
         "Movimento ad impulso in direzione est (dtime=20-16399)"
         if dtime < 20 or dtime > 16399:
             return None
-        return self.send_command(PULSE_M%("e", dtime), False)
+        return self.__send_cmd(PULSE_M%("e", dtime), False)
 
     def pulse_guide_west(self, dtime):
         "Movimento ad impulso in direzione ovest (dtime=20-16399)"
         if dtime < 20 or dtime > 16399:
             return None
-        return self.send_command(PULSE_M%("w", dtime), False)
+        return self.__send_cmd(PULSE_M%("w", dtime), False)
 
     def pulse_guide_south(self, dtime):
         "Movimento ad impulso in direzione sud (dtime=20-16399)"
         if dtime < 20 or dtime > 16399:
             return None
-        return self.send_command(PULSE_M%("s", dtime), False)
+        return self.__send_cmd(PULSE_M%("s", dtime), False)
 
     def pulse_guide_north(self, dtime):
         "Movimento ad impulso in direzione nord (dtime=20-16399)"
         if dtime < 20 or dtime > 16399:
             return None
-        return self.send_command(PULSE_M%("n", dtime), False)
+        return self.__send_cmd(PULSE_M%("n", dtime), False)
 
     def get_alt(self):
-        "Leggi altezza telescopio (gradi)"
-        ret = self.send_command(GET_ALT, True)
-        return ddmmss_decode(ret, with_sign=True)
+        "Legge altezza telescopio (gradi)"
+        ret = self.__send_cmd(GET_ALT, True)
+        return self._ddmmss_decode(ret, with_sign=True)
 
     def get_antib_dec(self):
-        "Leggi valore antibacklash declinazione (steps/arcsec)"
-        ret = self.send_command(GET_ANTIB_DEC, True)
+        "Legge valore antibacklash declinazione (steps/arcsec)"
+        ret = self.__send_cmd(GET_ANTIB_DEC, True)
         if ret:
             return int(ret)
         return None
 
     def get_antib_ra(self):
-        "Leggi valore antibacklash ascensione retta (steps/arcsec)"
-        ret = self.send_command(GET_ANTIB_RA, True)
+        "Legge valore antibacklash ascensione retta (steps/arcsec)"
+        ret = self.__send_cmd(GET_ANTIB_RA, True)
         if ret:
             return int(ret)
         return None
 
     def get_az(self):
-        "Leggi azimuth telescopio (gradi)"
-        ret = self.send_command(GET_AZ, True)
-        return ddmmss_decode(ret)
+        "Legge azimuth telescopio (gradi)"
+        ret = self.__send_cmd(GET_AZ, True)
+        return self._ddmmss_decode(ret)
 
     def get_current_de(self):
-        "Leggi declinazione telescopio (gradi)"
-        ret = self.send_command(GET_CUR_DE, True)
-        return ddmmss_decode(ret, with_sign=True)
+        "Legge declinazione telescopio (gradi)"
+        ret = self.__send_cmd(GET_CUR_DE, True)
+        return self._ddmmss_decode(ret, with_sign=True)
 
     def get_current_deh(self):
-        "Leggi declinazione telescopio (gradi, alta precisione)"
-        ret = self.send_command(GET_CUR_DEH, True)
-        return ddmmss_decode(ret, with_sign=True)
+        "Legge declinazione telescopio (gradi, alta precisione)"
+        ret = self.__send_cmd(GET_CUR_DEH, True)
+        return self._ddmmss_decode(ret, with_sign=True)
 
     def get_current_ha(self):
-        "Calcola angolo orario telescopio (ore)"
-        ret = self.send_command(GET_CUR_RAH, True)
-        rah = ddmmss_decode(ret)
+        "Legge ascensione retta telescopio e calcola angolo orario (ore)"
+        ret = self.__send_cmd(GET_CUR_RAH, True)
+        rah = self._ddmmss_decode(ret)
         if rah is None:
             return None
         return loc_st_now()-rah
 
     def get_current_ra(self):
-        "Leggi ascensione retta telescopio (ore)"
-        ret = self.send_command(GET_CUR_RA, True)
-        return ddmmss_decode(ret)
+        "Legge ascensione retta telescopio (ore)"
+        ret = self.__send_cmd(GET_CUR_RA, True)
+        return self._ddmmss_decode(ret)
 
     def get_current_rah(self):
-        "Leggi ascensione retta telescopio (ore, alta precisione)"
-        ret = self.send_command(GET_CUR_RAH, True)
-        return ddmmss_decode(ret)
+        "Legge ascensione retta telescopio (ore, alta precisione)"
+        ret = self.__send_cmd(GET_CUR_RAH, True)
+        return self._ddmmss_decode(ret)
 
     def get_date(self):
-        "Leggi data impostata al telescopio"
-        return self.send_command(GET_DATE, True)
+        "Legge data impostata al telescopio"
+        return self.__send_cmd(GET_DATE, True)
 
     def get_db(self):
         "Legge stato movimento (riporta '0x7f' se in moto)"
-        return self.send_command(GET_DB, True)
+        return self.__send_cmd(GET_DB, True)
 
     def get_foc1_act(self):
-        "Fuocheggiatore 1 attivo?"
+        "Legge stato fuocheggiatore (1: attivo)"
         cmd = GET_FOC_ACT%"F"
-        return self.send_command(cmd, True)
+        return self.__send_cmd(cmd, True)
 
     def get_foc2_act(self):
-        "Fuocheggiatore 2 attivo?"
+        "Legge stato fuocheggiatore 2 (1: attivo)"
         cmd = GET_FOC_ACT%"f"
-        return self.send_command(cmd, True)
+        return self.__send_cmd(cmd, True)
 
     def _get_foc_min(self, focuser):
         "Legge posizione minima fuocheggiatore 1/2 (micron)"
         cmd = GET_FOC_MIN%focuser
-        ret = self.send_command(cmd, True)
+        ret = self.__send_cmd(cmd, True)
         if ret:
             return int(ret)
         return None
@@ -846,15 +869,15 @@ Possibili valori di ritorno:
     def _get_foc_max(self, focuser):
         "Legge posizione massima fuocheggiatore 1/2 (micron)"
         cmd = GET_FOC_MAX%focuser
-        ret = self.send_command(cmd, True)
+        ret = self.__send_cmd(cmd, True)
         if ret:
             try:
                 val = int(ret)
-            except Exception as excp:
+            except ValueError:
                 val = None
-                LastErr.txt = str(excp)
+                self._errmsg = "Errore decodifica valore intero"
             return val
-        return None
+        return ret
 
     def get_foc1_max(self):
         "Legge posizione massima fuocheggiatore 1 (micron)"
@@ -867,7 +890,7 @@ Possibili valori di ritorno:
     def _get_foc_pos(self, focuser):
         "Legge posizione corrente fuocheggiatore 1/2 (micron)"
         cmd = GET_FOC_POS%focuser
-        ret = self.send_command(cmd, True)
+        ret = self.__send_cmd(cmd, True)
         if ret:
             return int(ret)
         return None
@@ -883,161 +906,143 @@ Possibili valori di ritorno:
     def get_foc1_stat(self):
         "Legge stato fuocheggiatore 1 (M: in movimento, S: fermo)"
         cmd = GET_FOC_STAT%"F"
-        return self.send_command(cmd, True)
+        return self.__send_cmd(cmd, True)
 
     def get_foc2_stat(self):
         "Legge stato fuocheggiatore 2 (M: in movimento, S: fermo)"
         cmd = GET_FOC_STAT%"f"
-        return self.send_command(cmd, True)
+        return self.__send_cmd(cmd, True)
 
     def get_hlim(self):
-        "Leggi minima altezza sull'orizzonte (gradi)"
-        ret = self.send_command(GET_HLIM, True)
+        "Legge minima altezza sull'orizzonte (gradi)"
+        ret = self.__send_cmd(GET_HLIM, True)
         return ret
 
     def get_olim(self):
-        "Leggi massima altezza sull'orizzonte (gradi)"
-        ret = self.send_command(GET_OVER, True)
+        "Legge massima altezza sull'orizzonte (gradi)"
+        ret = self.__send_cmd(GET_OVER, True)
         return ret
 
     def get_lon(self):
-        "Leggi longitudine del sito (gradi)"
-        ret = self.send_command(GET_LON, True)
-        return ddmm_decode(ret, with_sign=True)
+        "Legge longitudine del sito (gradi)"
+        ret = self.__send_cmd(GET_LON, True)
+        return self._ddmm_decode(ret, with_sign=True)
 
     def get_lat(self):
-        "Leggi latitudine del sito (gradi)"
-        ret = self.send_command(GET_LAT, True)
-        return ddmm_decode(ret, with_sign=True)
+        "Legge latitudine del sito (gradi)"
+        ret = self.__send_cmd(GET_LAT, True)
+        return self._ddmm_decode(ret, with_sign=True)
 
     def get_fmwname(self):
-        "Leggi nome firmware"
-        return self.send_command(GET_FMWNAME, True)
+        "Legge nome firmware"
+        return self.__send_cmd(GET_FMWNAME, True)
 
     def get_fmwdate(self):
-        "Leggi data firmware"
-        return self.send_command(GET_FMWDATE, True)
+        "Legge data firmware"
+        return self.__send_cmd(GET_FMWDATE, True)
 
     def get_genmsg(self):
-        "Leggi messaggio generico"
-        return self.send_command(GET_GENMSG, True)
+        "Legge messaggio generico"
+        return self.__send_cmd(GET_GENMSG, True)
 
     def get_fmwnumb(self):
-        "Leggi versione firmware"
-        return self.send_command(GET_FMWNUMB, True)
+        "Legge versione firmware"
+        return self.__send_cmd(GET_FMWNUMB, True)
 
     def get_fmwtime(self):
-        "Leggi ora firmware"
-        return self.send_command(GET_FMWTIME, True)
+        "Legge ora firmware"
+        return self.__send_cmd(GET_FMWTIME, True)
 
     def get_firmware(self):
-        "Leggi informazioni complete su firmware"
-        return (self.send_command(GET_FMWNAME, True),
-                self.send_command(GET_FMWNUMB, True),
-                self.send_command(GET_FMWDATE, True),
-                self.send_command(GET_FMWTIME, True))
+        "Legge informazioni complete su firmware"
+        return (self.__send_cmd(GET_FMWNAME, True),
+                self.__send_cmd(GET_FMWNUMB, True),
+                self.__send_cmd(GET_FMWDATE, True),
+                self.__send_cmd(GET_FMWTIME, True))
 
     def get_onstep_value(self, value):
-        "Leggi valore parametro OnStep (per tabella: gos?)"
+        "Legge valore parametro OnStep (per tabella: gos?)"
         cmd = GET_OSVALUE.replace("..", value[:2].upper())
-        ret = self.send_command(cmd, True)
+        ret = self.__send_cmd(cmd, True)
         return ret
 
     def get_ltime(self):
-        "Leggi tempo locale (ore)"
-        ret = self.send_command(GET_LTIME, True)
-        return ddmmss_decode(ret)
+        "Legge tempo locale (ore)"
+        ret = self.__send_cmd(GET_LTIME, True)
+        return self._ddmmss_decode(ret)
 
     def get_mstat(self):
-        "Leggi stato allineamento montatura"
-        return self.send_command(GET_MSTAT, True)
+        "Legge stato allineamento montatura"
+        return self.__send_cmd(GET_MSTAT, True)
 
     def get_pside(self):
-        "Leggi lato di posizione del braccio (E,W, N:non.disp.)"
-        return self.send_command(GET_PSIDE, True)
-
-    def gst_print(self):
-        "Stampa stato telescopio. Per tabella stati: gst?"
-        stat = self.send_command(GET_STAT, True)
-        if stat:
-            for stchr in stat:
-                print(" %s: %s"%(stchr, CODICI_STATO.get(stchr, "???")))
-        return stat
+        "Legge lato di posizione del braccio (E,W, N:non.disp.)"
+        return self.__send_cmd(GET_PSIDE, True)
 
     def get_status(self):
-        "Leggi stato telescopio. Per tabella stati: gst?"
-        ret = self.send_command(GET_STAT, True)
+        "Legge stato telescopio. Per tabella stati: gst?"
+        ret = self.__send_cmd(GET_STAT, True)
         return ret
 
     def get_target_de(self):
-        "Leggi declinazione oggetto (gradi)"
-        ret = self.send_command(GET_TAR_DE, True)
-        return ddmmss_decode(ret, with_sign=True)
+        "Legge declinazione oggetto (gradi)"
+        ret = self.__send_cmd(GET_TAR_DE, True)
+        return self._ddmmss_decode(ret, with_sign=True)
 
     def get_target_deh(self):
-        "Leggi declinazione oggetto (gradi, alta precisione)"
-        ret = self.send_command(GET_TAR_DEH, True)
-        return ddmmss_decode(ret, with_sign=True)
+        "Legge declinazione oggetto (gradi, alta precisione)"
+        ret = self.__send_cmd(GET_TAR_DEH, True)
+        return self._ddmmss_decode(ret, with_sign=True)
 
     def get_target_ra(self):
-        "Leggi ascensione retta oggetto (ore)"
-        ret = self.send_command(GET_TAR_RA, True)
-        return ddmmss_decode(ret)
+        "Legge ascensione retta oggetto (ore)"
+        ret = self.__send_cmd(GET_TAR_RA, True)
+        return self._ddmmss_decode(ret)
 
     def get_target_rah(self):
-        "Leggi ascensione retta oggetto (ore, alta precisione)"
-        ret = self.send_command(GET_TAR_RAH, True)
-        return ddmmss_decode(ret)
+        "Legge ascensione retta oggetto (ore, alta precisione)"
+        ret = self.__send_cmd(GET_TAR_RAH, True)
+        return self._ddmmss_decode(ret)
 
     def get_timefmt(self):
-        "Leggi formato ora"
-        return self.send_command(GET_TFMT, True)
+        "Legge formato ora"
+        return self.__send_cmd(GET_TFMT, True)
 
     def get_trate(self):
-        "Leggi tracking rate (Hz)"
-        ret = self.send_command(GET_TRATE, True)
-        return float_decode(ret)
+        "Legge frequenza di tracking (Hz)"
+        ret = self.__send_cmd(GET_TRATE, True)
+        return self._float_decode(ret)
 
     def get_tsid(self):
-        "Leggi tempo sidereo (ore)"
-        ret = self.send_command(GET_TSID, True)
-        return ddmmss_decode(ret)
+        "Legge tempo sidereo (ore)"
+        ret = self.__send_cmd(GET_TSID, True)
+        return self._ddmmss_decode(ret)
 
     def get_utcoffset(self):
-        "Leggi offset UTC (ore)"
-        ret = self.send_command(GET_UOFF, True)
-        try:
-            value = float(ret)
-        except ValueError as excp:
-            value = None
-            LastErr.txt = str(excp)
-        return value
+        "Legge offset UTC (ore)"
+        ret = self.__send_cmd(GET_UOFF, True)
+        return self._float_decode(ret)
 
     def get_ntemp(self):
-        "Leggi numero di sensori di temperatura"
-        ret = self.send_command(GET_NTEMP, True)
+        "Legge numero di sensori di temperatura"
+        ret = self.__send_cmd(GET_NTEMP, True)
         return int(ret)
 
     def get_temp(self, num):
-        "Leggi sensore temperatura n"
+        "Legge sensore temperatura n"
         if num >= 0 and num <= 9:
             cmd = GET_TEMP%num
-            ret = self.send_command(cmd, True)
-            try:
-                value = float(ret)
-            except ValueError as excp:
-                LastErr.txt = str(excp)
-                value = None
-        else:
-            value = None
-        return value
+            ret = self.__send_cmd(cmd, True)
+            return self._float_decode(ret)
+        self._errmsg = "Specifica sensore errata"
+        return None
 
     def _foc_sel(self, num, focuser):
         "seleziona fuocheggiatore 1/2"
         if num not in (1, 2):
             return None
         cmd = FOC_SELECT%(focuser, num)
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def foc1_sel(self, num):
         "Seleziona fuocheggiatore 1"
@@ -1048,64 +1053,64 @@ Possibili valori di ritorno:
         return self._foc_sel(num, "f")
 
     def move_foc1_in(self):
-        "Muovi fuocheggiatore 1 verso obiettivo"
+        "Muove fuocheggiatore 1 verso obiettivo"
         cmd = FOC_MOVEIN%"F"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def move_foc2_in(self):
-        "Muovi fuocheggiatore 2 verso obiettivo"
+        "Muove fuocheggiatore 2 verso obiettivo"
         cmd = FOC_MOVEIN%"f"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def move_foc1_out(self):
-        "Muovi fuocheggiatore 1 via da obiettivo"
+        "Muove fuocheggiatore 1 via da obiettivo"
         cmd = FOC_MOVEOUT%"F"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def move_foc2_out(self):
-        "Muovi fuocheggiatore 2 via da obiettivo"
+        "Muove fuocheggiatore 2 via da obiettivo"
         cmd = FOC_MOVEOUT%"f"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def stop_foc1(self):
         "Ferma movimento fuocheggiatore 1"
         cmd = FOC_STOP%"F"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def stop_foc2(self):
         "Ferma movimento fuocheggiatore 2"
         cmd = FOC_STOP%"f"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def move_foc1_zero(self):
-        "Muovi fuocheggiatore 1 in posizione zero"
+        "Muove fuocheggiatore 1 in posizione zero"
         cmd = FOC_ZERO%"F"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def move_foc2_zero(self):
-        "Muovi fuocheggiatore 2 in posizione zero"
+        "Muove fuocheggiatore 2 in posizione zero"
         cmd = FOC_ZERO%"f"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc1_fast(self):
         "Imposta velocità alta fuocheggiatore 1"
         cmd = FOC_FAST%"F"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc2_fast(self):
         "Imposta velocità alta fuocheggiatore 2"
         cmd = FOC_FAST%"f"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc1_slow(self):
         "Imposta velocità bassa fuocheggiatore 1"
         cmd = FOC_SLOW%"F"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc2_slow(self):
         "Imposta velocità bassa fuocheggiatore 2"
         cmd = FOC_SLOW%"f"
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def _set_foc_speed(self, rate, focuser):
         "Imposta velocità (1,2,3,4) fuocheggiatore 1/2"
@@ -1114,7 +1119,7 @@ Possibili valori di ritorno:
         elif rate < 1:
             rate = 1
         cmd = FOC_RATE%(focuser, rate)
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc1_speed(self, rate):
         "Imposta velocità (1,2,3,4) fuocheggiatore 1"
@@ -1127,58 +1132,58 @@ Possibili valori di ritorno:
     def set_foc1_rel(self, pos):
         "Imposta posizione relativa fuocheggiatore 1 (micron)"
         cmd = FOC_SETR%("F", pos)
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc2_rel(self, pos):
         "Imposta posizione relativa fuocheggiatore 2 (micron)"
         cmd = FOC_SETR%("f", pos)
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc1_abs(self, pos):
         "Imposta posizione assoluta fuocheggiatore 1 (micron)"
         cmd = FOC_SETA%("F", pos)
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def set_foc2_abs(self, pos):
         "Imposta posizione assoulta fuocheggiatore 2 (micron)"
         cmd = FOC_SETA%("f", pos)
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def rot_disable(self):
         "Disabilita rotatore"
-        return self.send_command(ROT_DISABLE, False)
+        return self.__send_cmd(ROT_DISABLE, False)
 
     def rot_enable(self):
         "Abilita rotatore"
-        return self.send_command(ROT_ENABLE, False)
+        return self.__send_cmd(ROT_ENABLE, False)
 
     def rot_setcont(self):
         "Imposta movimento continuo per rotatore"
-        return self.send_command(ROT_SETCONT, False)
+        return self.__send_cmd(ROT_SETCONT, False)
 
     def rot_topar(self):
-        "Muovi rotatore ad angolo parallattico"
-        return self.send_command(ROT_TOPAR, False)
+        "Muove rotatore ad angolo parallattico"
+        return self.__send_cmd(ROT_TOPAR, False)
 
     def rot_reverse(self):
         "Inverte direzione movimento rotatore"
-        return self.send_command(ROT_REVERS, False)
+        return self.__send_cmd(ROT_REVERS, False)
 
     def rot_sethome(self):
         "Imposta posizione corrente rotatore come HOME"
-        return self.send_command(ROT_SETHOME, False)
+        return self.__send_cmd(ROT_SETHOME, False)
 
     def rot_gohome(self):
-        "Muovi rotatore a posizione home"
-        return self.send_command(ROT_GOHOME, False)
+        "Muove rotatore a posizione home"
+        return self.__send_cmd(ROT_GOHOME, False)
 
     def rot_clkwise(self):
-        "Muovi rotatore in senso orario (incremento prefissato)"
-        return self.send_command(ROT_CLKWISE, False)
+        "Muove rotatore in senso orario (incremento prefissato)"
+        return self.__send_cmd(ROT_CLKWISE, False)
 
     def rot_cclkwise(self):
-        "Muovi rotatore in senso antiorario (incremento prefissato)"
-        return self.send_command(ROT_CCLKWISE, False)
+        "Muove rotatore in senso antiorario (incremento prefissato)"
+        return self.__send_cmd(ROT_CCLKWISE, False)
 
     def rot_setincr(self, incr):
         "Imposta incremento per movimento rotatore (1:1 grado, 2:5 gradi, 3: 10 gradi)"
@@ -1187,103 +1192,103 @@ Possibili valori di ritorno:
         elif incr > 3:
             incr = 3
         cmd = ROT_SETINCR%incr
-        return self.send_command(cmd, False)
+        return self.__send_cmd(cmd, False)
 
     def rot_setpos(self, deg):
         "Imposta posizione rotatore (gradi)"
         sign, degs, mins, secs = float2ums(deg, precision=3)
         sign = "+" if sign >= 0 else "-"
         cmd = ROT_SETPOS%(sign, degs, mins, secs)
-        return self.send_command(cmd, 1)
+        return self.__send_cmd(cmd, 1)
 
     def rot_getpos(self):
         "Legge posizione rotatore (gradi)"
-        ret = self.send_command(ROT_GET, True)
-        return ddmm_decode(ret)
+        ret = self.__send_cmd(ROT_GET, True)
+        return self._ddmm_decode(ret)
 
     def set_antib_dec(self, stpar):
         "Imposta valore anti backlash declinazione (steps per arcsec)"
-        return self.send_command(SET_ANTIB_DEC%stpar, True)
+        return self.__send_cmd(SET_ANTIB_DEC%stpar, True)
 
     def set_antib_ra(self, stpar):
         "Imposta valore anti backlash ascensione retta (steps per arcsec)"
-        return self.send_command(SET_ANTIB_RA%stpar, True)
+        return self.__send_cmd(SET_ANTIB_RA%stpar, True)
 
     def track_on(self):
         "Abilita tracking"
-        return self.send_command(TRACK_ON, True)
+        return self.__send_cmd(TRACK_ON, True)
 
     def track_off(self):
         "Disabilita tracking"
-        return self.send_command(TRACK_OFF, True)
+        return self.__send_cmd(TRACK_OFF, True)
 
     def ontrack(self):
         "Abilita modo On Track"
-        return self.send_command(ONTRACK, True)
+        return self.__send_cmd(ONTRACK, True)
 
     def track_rifraz_on(self):
         "Abilita correzione per rifrazione su tracking"
-        return self.send_command(TRACKR_ENB, True)
+        return self.__send_cmd(TRACKR_ENB, True)
 
     def track_rifraz_off(self):
         "Disabilita correzione per rifrazione su tracking"
-        return self.send_command(TRACKR_DIS, True)
+        return self.__send_cmd(TRACKR_DIS, True)
 
-    def track_incr(self):
-        "Incrementa tracking rate di 0.02 Hz"
-        return self.send_command(TRACK_INCR, False)
+    def sid_clock_incr(self):
+        "Incrementa frequenza clock sidereo di 0.02 Hz"
+        return self.__send_cmd(SIDCLK_INCR, False)
 
-    def track_decr(self):
-        "Decrementa tracking rate di 0.02 Hz"
-        return self.send_command(TRACK_DECR, False)
+    def sid_clock_decr(self):
+        "Decrementa frequenza clock sidereo di 0.02 Hz"
+        return self.__send_cmd(SIDCLK_DECR, False)
 
     def track_king(self):
-        "Imposta tracking rate king"
-        return self.send_command(TRACK_KING, False)
+        "Imposta frequenza di tracking king"
+        return self.__send_cmd(TRACK_KING, False)
 
     def track_lunar(self):
-        "Imposta tracking rate lunare"
-        return self.send_command(TRACK_LUNAR, False)
+        "Imposta frequenza di tracking lunare"
+        return self.__send_cmd(TRACK_LUNAR, False)
 
     def track_sidereal(self):
-        "Imposta tracking rate sidereo"
-        return self.send_command(TRACK_SIDER, False)
+        "Imposta frequenza di tracking siderea"
+        return self.__send_cmd(TRACK_SIDER, False)
 
     def track_solar(self):
-        "Imposta tracking rate solare"
-        return self.send_command(TRACK_SOLAR, False)
+        "Imposta frequenza di tracking solare"
+        return self.__send_cmd(TRACK_SOLAR, False)
 
     def track_one(self):
         "Imposta tracking su singolo asse (disab. DEC tracking)"
-        return self.send_command(TRACK_ONE, False)
+        return self.__send_cmd(TRACK_ONE, False)
 
     def track_two(self):
         "Imposta tracking sui due assi"
-        return self.send_command(TRACK_TWO, False)
+        return self.__send_cmd(TRACK_TWO, False)
 
-    def track_reset(self):
-        "Riporta tracking rate sidereo a valore calcolato"
-        return self.send_command(TRACK_RESET, False)
+    def sid_clock_reset(self):
+        "Riporta frequenza clock sidereo a valore iniziale"
+        return self.__send_cmd(SIDCLK_RESET, False)
 
     def park(self):
-        "Metti telescopio in stato PARK"
-        return self.send_command(PARK, True)
+        "Mette telescopio a riposo (PARK)"
+        return self.__send_cmd(PARK, True)
 
     def reset_home(self):
         "Imposta posizione HOME"
-        return self.send_command(SET_HOME, False)
+        return self.__send_cmd(SET_HOME, False)
 
     def goto_home(self):
-        "Muovi telescopio a posizione HOME"
-        return self.send_command(GOTO_HOME, False)
+        "Muove telescopio a posizione HOME"
+        return self.__send_cmd(GOTO_HOME, False)
 
     def set_park(self):
         "Imposta posizione PARK"
-        return self.send_command(SET_PARK, False)
+        return self.__send_cmd(SET_PARK, False)
 
     def unpark(self):
-        "Metti telescopio operativo (UNPARK)"
-        return self.send_command(UNPARK, True)
+        "Mette telescopio operativo (UNPARK)"
+        return self.__send_cmd(UNPARK, True)
 
     def gen_cmd(self, text):
         "Invia comando generico (:, # possono essere omessi)"
@@ -1291,7 +1296,7 @@ Possibili valori di ritorno:
             text = ":"+text
         if not text.endswith("#"):
             text += "#"
-        return self.send_command(text, True)
+        return self.__send_cmd(text, True)
 
     def opc_init(self):
         "Invia comandi di inizializzazione per telescopio OPC"
@@ -1302,262 +1307,276 @@ Possibili valori di ritorno:
         try:
             ret = ret1+ret2+ret3+ret4
         except TypeError:
-            LastErr.txt = "Error from some command of group"
             ret = None
         return ret
 
 ########################################################
+# Classe per il supporto del modo interattivo
 
-def getddmmss(args):
-    "[dd [mm [ss]]]"
-    if not args:
-        return None
-    value = float(args[0])
-    sign = 1 if value >= 0 else -1
-    value = abs(value)
-    if len(args) >= 2:
-        value += float(args[1])/60.
-    if len(args) >= 3:
-        value += float(args[2])/3600.
-    return value*sign
 
-def getint(args):
-    "[nnnn]"
-    if args:
-        return int(args[0])
-    return None
-
-def getfloat(args):
-    "[n.nnn]"
-    if args:
-        return float(args[0])
-    return None
-
-def getword(args):
-    "[aaaa]"
-    if args:
-        return args[0]
-    return None
-
-def noargs(*_unused):
-    " "
-    return None
-
-def _print_cmd(cmdict):
-    "Visualizza comandi in elenco"
-    keys = list(cmdict.keys())
-    keys.sort()
-    for key in keys:
-        print("   %3s: %s %s"%(key, cmdict[key][0].__doc__, cmdict[key][1].__doc__))
-
-def myexit():
-    "Termina programma"
-    sys.exit()
-
-def gos_info(cset=""):
-    "Mostra  tabella dei codici per interrogazioni valori OnStep"
-    cset = cset.upper()
-    if cset == "0":
-        print(CODICI_ONSTEP_0X)
-    elif cset == "8":
-        print(CODICI_ONSTEP_8X)
-    elif cset == "9":
-        print(CODICI_ONSTEP_9X)
-    elif cset == "E":
-        print(CODICI_ONSTEP_EX)
-    elif cset == "F":
-        print(CODICI_ONSTEP_FX)
-    elif cset == "G":
-        print(CODICI_ONSTEP_GX)
-    elif cset == "U":
-        print(CODICI_ONSTEP_UX)
-    else:
-        print("Seleziona tabella specifica:")
-        print(CODICI_TABELLE_ONSTEP)
-    return ""
-
-def trk_info():
-    "Informazioni sulle variabili concernenti il tracking"
-    print(TRACKING_INFO)
-    return ""
-
-def gst_info():
-    "Mostra  tabella dei codici di stato"
-    print("Tabella codici di stato da comando gst")
-    print()
-    for schr, text in CODICI_STATO.items():
-        print(" %s: %s"%(schr, text))
-    return ""
-
-def mvt_info():
-    "Mostra  codici risposta da comando move to target"
-    print("Tabella codici di risposta da comando move to")
-    print()
-    print(CODICI_RISPOSTA)
-    return ""
-
-class Executor:
+class __Executor:
     "Esecuzione comandi interattivi"
     def __init__(self, config, verbose):
-        dcom = TeleCommunicator(config["tel_ip"], config["tel_port"], verbose=verbose)
+        dcom = TeleCommunicator(config["tel_ip"], config["tel_port"])
+        self._verbose = verbose
 #                    codice   funzione      convers.argom.
-        self.lxcmd = {"f1+": (dcom.move_foc1_in, noargs),
-                      "f2+": (dcom.move_foc2_in, noargs),
-                      "f1-": (dcom.move_foc1_out, noargs),
-                      "f2-": (dcom.move_foc2_out, noargs),
-                      "f1a": (dcom.get_foc1_act, noargs),
-                      "f2a": (dcom.get_foc2_act, noargs),
-                      "f1b": (dcom.set_foc1_abs, getint),
-                      "f2b": (dcom.set_foc2_abs, getint),
-                      "f1f": (dcom.set_foc1_fast, noargs),
-                      "f2f": (dcom.set_foc2_fast, noargs),
-                      "f1i": (dcom.get_foc1_min, noargs),
-                      "f2i": (dcom.get_foc2_min, noargs),
-                      "f1l": (dcom.set_foc1_slow, noargs),
-                      "f2l": (dcom.set_foc2_slow, noargs),
-                      "f1m": (dcom.get_foc1_max, noargs),
-                      "f2m": (dcom.get_foc2_max, noargs),
-                      "f1p": (dcom.get_foc1_pos, noargs),
-                      "f2p": (dcom.get_foc2_pos, noargs),
-                      "f1q": (dcom.stop_foc1, noargs),
-                      "f2q": (dcom.stop_foc2, noargs),
-                      "f1r": (dcom.set_foc1_rel, getint),
-                      "f2r": (dcom.set_foc2_rel, getint),
-                      "f1s": (dcom.foc1_sel, getint),
-                      "f2s": (dcom.foc2_sel, getint),
-                      "f1t": (dcom.get_foc1_stat, noargs),
-                      "f2t": (dcom.get_foc2_stat, noargs),
-                      "f1v": (dcom.set_foc1_speed, getint),
-                      "f2v": (dcom.set_foc2_speed, getint),
-                      "f1z": (dcom.move_foc1_zero, noargs),
-                      "f2z": (dcom.move_foc2_zero, noargs),
-                      "gad": (dcom.get_antib_dec, noargs),
-                      "gar": (dcom.get_antib_ra, noargs),
-                      "gat": (dcom.get_alt, noargs),
-                      "gda": (dcom.get_date, noargs),
-                      "gdt": (dcom.get_current_de, noargs),
-                      "gdo": (dcom.get_target_de, noargs),
-                      "gfd": (dcom.get_fmwdate, noargs),
-                      "gfi": (dcom.get_fmwnumb, noargs),
-                      "gfn": (dcom.get_fmwname, noargs),
-                      "gft": (dcom.get_fmwtime, noargs),
-                      "ggm": (dcom.get_genmsg, noargs),
-                      "gla": (dcom.get_lat, noargs),
-                      "gli": (dcom.get_hlim, noargs),
-                      "glo": (dcom.get_lon, noargs),
-                      "glt": (dcom.get_ltime, noargs),
-                      "glb": (dcom.get_pside, noargs),
-                      "glh": (dcom.get_olim, noargs),
-                      "gmo": (dcom.get_db, noargs),
-                      "gro": (dcom.get_target_ra, noargs),
-                      "grt": (dcom.get_current_ra, noargs),
-                      "gsm": (dcom.get_mstat, noargs),
-                      "gst": (dcom.gst_print, noargs),
-                      "gte": (dcom.get_temp, getint),
-                      "gtf": (dcom.get_timefmt, noargs),
-                      "gtn": (dcom.get_ntemp, noargs),
-                      "gtr": (dcom.get_trate, noargs),
-                      "gts": (dcom.get_tsid, noargs),
-                      "guo": (dcom.get_utcoffset, noargs),
-                      "gzt": (dcom.get_az, noargs),
-                      "hdo": (dcom.get_target_deh, noargs),
-                      "hdt": (dcom.get_current_deh, noargs),
-                      "hom": (dcom.goto_home, noargs),
-                      "hro": (dcom.get_target_rah, noargs),
-                      "hrt": (dcom.get_current_rah, noargs),
-                      "mve": (dcom.move_east, noargs),
-                      "mvo": (dcom.move_west, noargs),
-                      "mvn": (dcom.move_north, noargs),
-                      "mvs": (dcom.move_south, noargs),
-                      "mvt": (dcom.move_target, noargs),
-                      "par": (dcom.park, noargs),
-                      "pge": (dcom.pulse_guide_east, getint),
-                      "pgo": (dcom.pulse_guide_west, getint),
-                      "pgn": (dcom.pulse_guide_north, getint),
-                      "pgs": (dcom.pulse_guide_south, getint),
-                      "rcc": (dcom.rot_cclkwise, noargs),
-                      "rct": (dcom.rot_setcont, noargs),
-                      "rcw": (dcom.rot_clkwise, noargs),
-                      "rdi": (dcom.rot_disable, noargs),
-                      "ren": (dcom.rot_enable, noargs),
-                      "rge": (dcom.rot_getpos, noargs),
-                      "rho": (dcom.rot_gohome, noargs),
-                      "rpa": (dcom.rot_topar, noargs),
-                      "rrv": (dcom.rot_reverse, noargs),
-                      "rsh": (dcom.rot_sethome, noargs),
-                      "rsi": (dcom.rot_setincr, getint),
-                      "rsp": (dcom.rot_setpos, getddmmss),
-                      "sad": (dcom.set_antib_dec, getint),
-                      "sar": (dcom.set_antib_ra, getint),
-                      "sho": (dcom.reset_home, noargs),
-                      "sla": (dcom.set_lat, getddmmss),
-                      "spa": (dcom.set_park, noargs),
-                      "stp": (dcom.stop, noargs),
-                      "ste": (dcom.stop_east, noargs),
-                      "sti": (dcom.set_time, noargs),
-                      "sto": (dcom.stop_west, noargs),
-                      "stn": (dcom.stop_north, noargs),
-                      "sts": (dcom.stop_south, noargs),
-                      "srt": (dcom.set_rate, getword),
-                      "sda": (dcom.set_date, noargs),
-                      "sdo": (dcom.set_de, getddmmss),
-                      "sal": (dcom.set_alt, getddmmss),
-                      "saz": (dcom.set_az, getddmmss),
-                      "smn": (dcom.set_min_alt, getint),
-                      "smx": (dcom.set_max_alt, getint),
-                      "slo": (dcom.set_lon, getddmmss),
-                      "sro": (dcom.set_ra, getddmmss),
-                      "std": (dcom.set_tsid, noargs),
-                      "syn": (dcom.sync_radec, noargs),
-                      "syt": (dcom.sync_taradec, noargs),
-                      "trs": (dcom.set_trate, getfloat),
-                      "tof": (dcom.track_off, noargs),
-                      "ton": (dcom.track_on, noargs),
-                      "tot": (dcom.ontrack, noargs),
-                      "trn": (dcom.track_rifraz_on, noargs),
-                      "trf": (dcom.track_rifraz_off, noargs),
-                      "t+":  (dcom.track_incr, noargs),
-                      "t-":  (dcom.track_decr, noargs),
-                      "tki": (dcom.track_king, noargs),
-                      "tlu": (dcom.track_lunar, noargs),
-                      "tsi": (dcom.track_sidereal, noargs),
-                      "tso": (dcom.track_solar, noargs),
-                      "tr1": (dcom.track_one, noargs),
-                      "tr2": (dcom.track_two, noargs),
-                      "tre": (dcom.track_reset, noargs),
-                      "unp": (dcom.unpark, noargs),
+        self.lxcmd = {"f1+": (dcom.move_foc1_in, self.__noargs),
+                      "f2+": (dcom.move_foc2_in, self.__noargs),
+                      "f1-": (dcom.move_foc1_out, self.__noargs),
+                      "f2-": (dcom.move_foc2_out, self.__noargs),
+                      "f1a": (dcom.get_foc1_act, self.__noargs),
+                      "f2a": (dcom.get_foc2_act, self.__noargs),
+                      "f1b": (dcom.set_foc1_abs, self.__getint),
+                      "f2b": (dcom.set_foc2_abs, self.__getint),
+                      "f1f": (dcom.set_foc1_fast, self.__noargs),
+                      "f2f": (dcom.set_foc2_fast, self.__noargs),
+                      "f1i": (dcom.get_foc1_min, self.__noargs),
+                      "f2i": (dcom.get_foc2_min, self.__noargs),
+                      "f1l": (dcom.set_foc1_slow, self.__noargs),
+                      "f2l": (dcom.set_foc2_slow, self.__noargs),
+                      "f1m": (dcom.get_foc1_max, self.__noargs),
+                      "f2m": (dcom.get_foc2_max, self.__noargs),
+                      "f1p": (dcom.get_foc1_pos, self.__noargs),
+                      "f2p": (dcom.get_foc2_pos, self.__noargs),
+                      "f1q": (dcom.stop_foc1, self.__noargs),
+                      "f2q": (dcom.stop_foc2, self.__noargs),
+                      "f1r": (dcom.set_foc1_rel, self.__getint),
+                      "f2r": (dcom.set_foc2_rel, self.__getint),
+                      "f1s": (dcom.foc1_sel, self.__getint),
+                      "f2s": (dcom.foc2_sel, self.__getint),
+                      "f1t": (dcom.get_foc1_stat, self.__noargs),
+                      "f2t": (dcom.get_foc2_stat, self.__noargs),
+                      "f1v": (dcom.set_foc1_speed, self.__getint),
+                      "f2v": (dcom.set_foc2_speed, self.__getint),
+                      "f1z": (dcom.move_foc1_zero, self.__noargs),
+                      "f2z": (dcom.move_foc2_zero, self.__noargs),
+                      "gad": (dcom.get_antib_dec, self.__noargs),
+                      "gar": (dcom.get_antib_ra, self.__noargs),
+                      "gat": (dcom.get_alt, self.__noargs),
+                      "gda": (dcom.get_date, self.__noargs),
+                      "gdt": (dcom.get_current_de, self.__noargs),
+                      "gdo": (dcom.get_target_de, self.__noargs),
+                      "gfd": (dcom.get_fmwdate, self.__noargs),
+                      "gfi": (dcom.get_fmwnumb, self.__noargs),
+                      "gfn": (dcom.get_fmwname, self.__noargs),
+                      "gft": (dcom.get_fmwtime, self.__noargs),
+                      "ggm": (dcom.get_genmsg, self.__noargs),
+                      "gla": (dcom.get_lat, self.__noargs),
+                      "gli": (dcom.get_hlim, self.__noargs),
+                      "glo": (dcom.get_lon, self.__noargs),
+                      "glt": (dcom.get_ltime, self.__noargs),
+                      "glb": (dcom.get_pside, self.__noargs),
+                      "glh": (dcom.get_olim, self.__noargs),
+                      "gmo": (dcom.get_db, self.__noargs),
+                      "gro": (dcom.get_target_ra, self.__noargs),
+                      "grt": (dcom.get_current_ra, self.__noargs),
+                      "gsm": (dcom.get_mstat, self.__noargs),
+                      "gst": (self.__gst_print, self.__noargs),
+                      "gte": (dcom.get_temp, self.__getint),
+                      "gtf": (dcom.get_timefmt, self.__noargs),
+                      "gtn": (dcom.get_ntemp, self.__noargs),
+                      "gtr": (dcom.get_trate, self.__noargs),
+                      "gts": (dcom.get_tsid, self.__noargs),
+                      "guo": (dcom.get_utcoffset, self.__noargs),
+                      "gzt": (dcom.get_az, self.__noargs),
+                      "hdo": (dcom.get_target_deh, self.__noargs),
+                      "hdt": (dcom.get_current_deh, self.__noargs),
+                      "hom": (dcom.goto_home, self.__noargs),
+                      "hro": (dcom.get_target_rah, self.__noargs),
+                      "hrt": (dcom.get_current_rah, self.__noargs),
+                      "mve": (dcom.move_east, self.__noargs),
+                      "mvo": (dcom.move_west, self.__noargs),
+                      "mvn": (dcom.move_north, self.__noargs),
+                      "mvs": (dcom.move_south, self.__noargs),
+                      "mvt": (dcom.move_target, self.__noargs),
+                      "par": (dcom.park, self.__noargs),
+                      "pge": (dcom.pulse_guide_east, self.__getint),
+                      "pgo": (dcom.pulse_guide_west, self.__getint),
+                      "pgn": (dcom.pulse_guide_north, self.__getint),
+                      "pgs": (dcom.pulse_guide_south, self.__getint),
+                      "rcc": (dcom.rot_cclkwise, self.__noargs),
+                      "rct": (dcom.rot_setcont, self.__noargs),
+                      "rcw": (dcom.rot_clkwise, self.__noargs),
+                      "rdi": (dcom.rot_disable, self.__noargs),
+                      "ren": (dcom.rot_enable, self.__noargs),
+                      "rge": (dcom.rot_getpos, self.__noargs),
+                      "rho": (dcom.rot_gohome, self.__noargs),
+                      "rpa": (dcom.rot_topar, self.__noargs),
+                      "rrv": (dcom.rot_reverse, self.__noargs),
+                      "rsh": (dcom.rot_sethome, self.__noargs),
+                      "rsi": (dcom.rot_setincr, self.__getint),
+                      "rsp": (dcom.rot_setpos, self.__getddmmss),
+                      "s+":  (dcom.sid_clock_incr, self.__noargs),
+                      "s-":  (dcom.sid_clock_decr, self.__noargs),
+                      "sad": (dcom.set_antib_dec, self.__getint),
+                      "sar": (dcom.set_antib_ra, self.__getint),
+                      "sde": (dcom.set_slew_dec, self.__getfloat),
+                      "sha": (dcom.set_slew_ha, self.__getfloat),
+                      "sho": (dcom.reset_home, self.__noargs),
+                      "sla": (dcom.set_lat, self.__getddmmss),
+                      "slv": (dcom.set_slew, self.__getword),
+                      "spa": (dcom.set_park, self.__noargs),
+                      "sre": (dcom.sid_clock_reset, self.__noargs),
+                      "stp": (dcom.stop, self.__noargs),
+                      "ste": (dcom.stop_east, self.__noargs),
+                      "sti": (dcom.set_time, self.__noargs),
+                      "sto": (dcom.stop_west, self.__noargs),
+                      "stn": (dcom.stop_north, self.__noargs),
+                      "sts": (dcom.stop_south, self.__noargs),
+                      "sda": (dcom.set_date, self.__noargs),
+                      "sdo": (dcom.set_de, self.__getddmmss),
+                      "sal": (dcom.set_alt, self.__getddmmss),
+                      "saz": (dcom.set_az, self.__getddmmss),
+                      "smn": (dcom.set_min_alt, self.__getint),
+                      "smx": (dcom.set_max_alt, self.__getint),
+                      "slo": (dcom.set_lon, self.__getddmmss),
+                      "sro": (dcom.set_ra, self.__getddmmss),
+                      "std": (dcom.set_tsid, self.__noargs),
+                      "syn": (dcom.sync_radec, self.__noargs),
+                      "syt": (dcom.sync_taradec, self.__noargs),
+                      "trs": (dcom.set_trate, self.__getfloat),
+                      "tof": (dcom.track_off, self.__noargs),
+                      "ton": (dcom.track_on, self.__noargs),
+                      "tot": (dcom.ontrack, self.__noargs),
+                      "trn": (dcom.track_rifraz_on, self.__noargs),
+                      "trf": (dcom.track_rifraz_off, self.__noargs),
+                      "tki": (dcom.track_king, self.__noargs),
+                      "tlu": (dcom.track_lunar, self.__noargs),
+                      "tsi": (dcom.track_sidereal, self.__noargs),
+                      "tso": (dcom.track_solar, self.__noargs),
+                      "tr1": (dcom.track_one, self.__noargs),
+                      "tr2": (dcom.track_two, self.__noargs),
+                      "unp": (dcom.unpark, self.__noargs),
                      }
-        self.spcmd = {"gos": (dcom.get_onstep_value, getword),
-                      "x00": (dcom.set_onstep_00, getint),
-                      "x01": (dcom.set_onstep_01, getint),
-                      "x02": (dcom.set_onstep_02, getint),
-                      "x03": (dcom.set_onstep_03, getint),
-                      "x04": (dcom.set_onstep_04, getint),
-                      "x05": (dcom.set_onstep_05, getint),
-                      "x06": (dcom.set_onstep_06, getint),
-                      "x07": (dcom.set_onstep_07, getint),
-                      "x08": (dcom.set_onstep_08, getint),
-                      "x92": (dcom.set_onstep_92, getint),
-                      "x93": (dcom.set_onstep_93, getint),
-                      "x95": (dcom.set_onstep_95, getint),
-                      "x96": (dcom.set_onstep_96, getword),
-                      "x97": (dcom.set_onstep_97, getint),
-                      "x98": (dcom.set_onstep_98, getint),
-                      "x99": (dcom.set_onstep_99, getint),
-                      "xe9": (dcom.set_onstep_e9, getint),
-                      "xea": (dcom.set_onstep_ea, getint),
+        self.spcmd = {"gos": (dcom.get_onstep_value, self.__getword),
+                      "x00": (dcom.set_onstep_00, self.__getint),
+                      "x01": (dcom.set_onstep_01, self.__getint),
+                      "x02": (dcom.set_onstep_02, self.__getint),
+                      "x03": (dcom.set_onstep_03, self.__getint),
+                      "x04": (dcom.set_onstep_04, self.__getint),
+                      "x05": (dcom.set_onstep_05, self.__getint),
+                      "x06": (dcom.set_onstep_06, self.__getint),
+                      "x07": (dcom.set_onstep_07, self.__getint),
+                      "x08": (dcom.set_onstep_08, self.__getint),
+                      "x92": (dcom.set_onstep_92, self.__getint),
+                      "x93": (dcom.set_onstep_93, self.__getint),
+                      "x95": (dcom.set_onstep_95, self.__getint),
+                      "x96": (dcom.set_onstep_96, self.__getword),
+                      "x97": (dcom.set_onstep_97, self.__getint),
+                      "x98": (dcom.set_onstep_98, self.__getint),
+                      "x99": (dcom.set_onstep_99, self.__getint),
+                      "xe9": (dcom.set_onstep_e9, self.__getint),
+                      "xea": (dcom.set_onstep_ea, self.__getint),
                      }
-        self.hkcmd = {"q": (myexit, noargs),
-                      "?": (self.search, getword),
-                      "gos?": (gos_info, getword),
-                      "gha": (dcom.get_current_ha, noargs),
-                      "gst?": (gst_info, noargs),
-                      "mvt?": (mvt_info, noargs),
-                      "ini": (dcom.opc_init, noargs),
-                      "cmd": (dcom.gen_cmd, getword),
-                      "fmw": (dcom.get_firmware, noargs),
-                      "ver": (dcom.set_verbose, noargs),
+        self.hkcmd = {"q": (self.__myexit, self.__noargs),
+                      "?": (self.search, self.__getword),
+                      "gos?": (self.__gos_info, self.__getword),
+                      "gha": (dcom.get_current_ha, self.__noargs),
+                      "gst?": (self.__gst_info, self.__noargs),
+                      "mvt?": (self.__mvt_info, self.__noargs),
+                      "ini": (dcom.opc_init, self.__noargs),
+                      "cmd": (dcom.gen_cmd, self.__getword),
+                      "fmw": (dcom.get_firmware, self.__noargs),
+                      "ver": (self.__toggle_verbose, self.__noargs),
                      }
+        self._dcom = dcom
+
+    def __getddmmss(self, args):
+        "[dd [mm [ss]]]"
+        if not args:
+            return None
+        value = float(args[0])
+        sign = 1 if value >= 0 else -1
+        value = abs(value)
+        if len(args) >= 2:
+            value += float(args[1])/60.
+        if len(args) >= 3:
+            value += float(args[2])/3600.
+        return value*sign
+
+    def __getint(self, args):
+        "[nnnn]"
+        if args:
+            return int(args[0])
+        return None
+
+    def __getfloat(self, args):
+        "[n.nnn]"
+        if args:
+            return float(args[0])
+        return None
+
+    def __getword(self, args):
+        "[aaaa]"
+        if args:
+            return args[0]
+        return None
+
+    def __noargs(self, *_unused):
+        " "
+        return None
+
+    def __print_cmd(self, cmdict):
+        "Visualizza comandi in elenco"
+        keys = list(cmdict.keys())
+        keys.sort()
+        for key in keys:
+            print("   %3s: %s %s"%(key, cmdict[key][0].__doc__, cmdict[key][1].__doc__))
+
+    def __myexit(self):
+        "Termina programma"
+        sys.exit()
+
+    def __gos_info(self, cset=""):
+        "Mostra  tabella dei codici per interrogazioni valori OnStep"
+        cset = cset.upper()
+        if cset == "0":
+            print(CODICI_ONSTEP_0X)
+        elif cset == "8":
+            print(CODICI_ONSTEP_8X)
+        elif cset == "9":
+            print(CODICI_ONSTEP_9X)
+        elif cset == "E":
+            print(CODICI_ONSTEP_EX)
+        elif cset == "F":
+            print(CODICI_ONSTEP_FX)
+        elif cset == "G":
+            print(CODICI_ONSTEP_GX)
+        elif cset == "U":
+            print(CODICI_ONSTEP_UX)
+        else:
+            print("Seleziona tabella specifica:")
+            print(CODICI_TABELLE_ONSTEP)
+        return ""
+
+    def __gst_info(self):
+        "Mostra  tabella dei codici di stato"
+        print("Tabella codici di stato da comando gst")
+        print(self)
+        for schr, text in CODICI_STATO.items():
+            print(" %s: %s"%(schr, text))
+        return ""
+
+    def __mvt_info(self):
+        "Mostra  codici risposta da comando move to target"
+        print("Tabella codici di risposta da comando move to")
+        print()
+        print(CODICI_RISPOSTA)
+        return ""
+
+    def __gst_print(self):
+        "Mostra stato telescopio. Per tabella stati: gst?"
+        stat = self._dcom.get_status()
+        if stat:
+            for stchr in stat:
+                print(" %s: %s"%(stchr, CODICI_STATO.get(stchr, "???")))
+        return stat
+
+    def __toggle_verbose(self):
+        "Abilita/Disabilita modo verboso"
+        self._verbose = not self._verbose
+        return ""
+
     def search(self, word=""):
         "Cerca comando contenente la parola"
         wsc = word.lower()
@@ -1569,7 +1588,7 @@ class Executor:
             descr = value[0].__doc__
             if descr and wsc in descr.lower():
                 found[key] = value
-        _print_cmd(found)
+        self.__print_cmd(found)
         return ""
 
     def execute(self, command):
@@ -1580,23 +1599,28 @@ class Executor:
         cmd0 = cmdw[0][:4].lower()
         clist = self.lxcmd
         cmd_spec = clist.get(cmd0)
+        showc = True
         if not cmd_spec:
             clist = self.hkcmd
             cmd_spec = clist.get(cmd0)
+            showc = False
         if not cmd_spec:
             clist = self.spcmd
             cmd_spec = clist.get(cmd0)
         if cmd_spec:
             the_arg = cmd_spec[1](cmdw[1:])
-            if the_arg is not None:
-                ret = cmd_spec[0](the_arg)
-            else:
+            if the_arg is None:
                 try:
                     ret = cmd_spec[0]()
                 except TypeError:
-                    ret = "Argomento mancante"
+                    return "Argomento mancante"
+            else:
+                ret = cmd_spec[0](the_arg)
+            if self._verbose and showc:
+                print("CMD -", self._dcom.last_command())
+                print("RPL -", self._dcom.last_reply())
             if ret is None:
-                ret = "Errore comando: "+LastErr.txt
+                ret = "Errore comando: "+self._dcom.last_error()
         else:
             ret = "Comando sconosciuto!"
         return ret
@@ -1604,11 +1628,11 @@ class Executor:
     def usage(self):
         "Visualizza elenco comandi"
         print("\nComandi LX200 standard:")
-        _print_cmd(self.lxcmd)
+        self.__print_cmd(self.lxcmd)
         print("\nComandi speciali:")
-        _print_cmd(self.spcmd)
+        self.__print_cmd(self.spcmd)
         print("\nComandi aggiuntivi:")
-        _print_cmd(self.hkcmd)
+        self.__print_cmd(self.hkcmd)
 
 def main():
     "Invio comandi da console e test"
@@ -1636,7 +1660,7 @@ def main():
 
     verbose = ("-v" in sys.argv)
 
-    exe = Executor(config, verbose)
+    exe = __Executor(config, verbose)
 
     while True:
         answ = input("\nComando (invio per aiuto): ")
