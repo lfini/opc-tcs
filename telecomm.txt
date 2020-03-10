@@ -1,0 +1,523 @@
+Help on module telecomm:
+
+NAME
+    telecomm - Funzioni di comunicazione per controllo telescopio OPC
+
+DESCRIPTION
+    Implementa i comandi LX200 specifici per OnStep
+    
+    Uso interattivo:
+    
+          python telcomm.py [-dhvV]
+    
+    Dove:
+          -d  Collegamento al simulatore (IP: 127.0.0.1, Port: 9753)
+          -v  Modo verboso (visualizza protocollo)
+          -V  Mostra versione ed esci
+    
+    Il file puo essere importato come modulo.
+
+CLASSES
+    builtins.object
+        TeleCommunicator
+    
+    class TeleCommunicator(builtins.object)
+     |  Gestione comunicazione con server telescopio (LX200 specifico OnStep)
+     |  
+     |  Methods defined here:
+     |  
+     |  __init__(self, ipadr, port, timeout=0.5)
+     |      Inizializzazione TeleCommunicator:
+     |      
+     |      ipaddr:  Indirizzo IP telescopio (str)
+     |      port:    Port IP telescopio (int)
+     |      timeout: Timeout comunicazione in secondi (float)
+     |  
+     |  foc1_get_act(self)
+     |      Legge stato attività fuocheggiatore (1:attivo, 0:disattivo)
+     |  
+     |  foc1_get_max(self)
+     |      Legge posizione massima fuocheggiatore 1 (micron)
+     |  
+     |  foc1_get_min(self)
+     |      Legge posizione minima fuocheggiatore 1 (micron)
+     |  
+     |  foc1_get_pos(self)
+     |      Legge posizione corrente fuocheggiatore 1 (micron)
+     |  
+     |  foc1_get_stat(self)
+     |      Legge stato di moto fuocheggiatore 1 (M: in movimento, S: fermo)
+     |  
+     |  foc1_move_in(self)
+     |      Muove fuocheggiatore 1 verso obiettivo
+     |  
+     |  foc1_move_out(self)
+     |      Muove fuocheggiatore 1 via da obiettivo
+     |  
+     |  foc1_move_zero(self)
+     |      Muove fuocheggiatore 1 in posizione zero
+     |  
+     |  foc1_sel(self)
+     |      Seleziona fuocheggiatore 1
+     |  
+     |  foc1_set_abs(self, pos)
+     |      Imposta posizione assoluta fuocheggiatore 1 (micron)
+     |  
+     |  foc1_set_fast(self)
+     |      Imposta velocità alta fuocheggiatore 1
+     |  
+     |  foc1_set_rel(self, pos)
+     |      Imposta posizione relativa fuocheggiatore 1 (micron)
+     |  
+     |  foc1_set_slow(self)
+     |      Imposta velocità bassa fuocheggiatore 1
+     |  
+     |  foc1_set_speed(self, rate)
+     |      Imposta velocità (1,2,3,4) fuocheggiatore 1
+     |  
+     |  foc1_stop(self)
+     |      Ferma movimento fuocheggiatore 1
+     |  
+     |  foc2_get_act(self)
+     |      Legge stato attività fuocheggiatore 2 (1:attivo, 0:disattivo)
+     |  
+     |  foc2_get_max(self)
+     |      Legge posizione massima fuocheggiatore 2 (micron)
+     |  
+     |  foc2_get_min(self)
+     |      Legge posizione minima fuocheggiatore 2 (micron)
+     |  
+     |  foc2_get_pos(self)
+     |      Legge posizione corrente fuocheggiatore 2 (micron)
+     |  
+     |  foc2_get_stat(self)
+     |      Legge stato di moto fuocheggiatore 2 (M: in movimento, S: fermo)
+     |  
+     |  foc2_move_in(self)
+     |      Muove fuocheggiatore 2 verso obiettivo
+     |  
+     |  foc2_move_out(self)
+     |      Muove fuocheggiatore 2 via da obiettivo
+     |  
+     |  foc2_move_zero(self)
+     |      Muove fuocheggiatore 2 in posizione zero
+     |  
+     |  foc2_sel(self)
+     |      Seleziona fuocheggiatore 2
+     |  
+     |  foc2_set_abs(self, pos)
+     |      Imposta posizione assoulta fuocheggiatore 2 (micron)
+     |  
+     |  foc2_set_fast(self)
+     |      Imposta velocità alta fuocheggiatore 2
+     |  
+     |  foc2_set_rel(self, pos)
+     |      Imposta posizione relativa fuocheggiatore 2 (micron)
+     |  
+     |  foc2_set_slow(self)
+     |      Imposta velocità bassa fuocheggiatore 2
+     |  
+     |  foc2_set_speed(self, rate)
+     |      Imposta velocità (1,2,3,4) fuocheggiatore 2
+     |  
+     |  foc2_stop(self)
+     |      Ferma movimento fuocheggiatore 2
+     |  
+     |  gen_cmd(self, text)
+     |      Invia comando generico (:, # possono essere omessi)
+     |  
+     |  get_alt(self)
+     |      Legge altezza telescopio (gradi)
+     |  
+     |  get_antib_dec(self)
+     |      Legge valore antibacklash declinazione (steps/arcsec)
+     |  
+     |  get_antib_ra(self)
+     |      Legge valore antibacklash ascensione retta (steps/arcsec)
+     |  
+     |  get_az(self)
+     |      Legge azimuth telescopio (gradi)
+     |  
+     |  get_current_de(self)
+     |      Legge declinazione telescopio (gradi)
+     |  
+     |  get_current_deh(self)
+     |      Legge declinazione telescopio (gradi, alta precisione)
+     |  
+     |  get_current_ha(self)
+     |      Legge ascensione retta telescopio e calcola angolo orario (ore)
+     |  
+     |  get_current_ra(self)
+     |      Legge ascensione retta telescopio (ore)
+     |  
+     |  get_current_rah(self)
+     |      Legge ascensione retta telescopio (ore, alta precisione)
+     |  
+     |  get_date(self)
+     |      Legge data impostata al telescopio
+     |  
+     |  get_db(self)
+     |      Legge stato movimento (riporta '0x7f' se in moto)
+     |  
+     |  get_firmware(self)
+     |      Legge informazioni complete su firmware
+     |  
+     |  get_fmwdate(self)
+     |      Legge data firmware
+     |  
+     |  get_fmwname(self)
+     |      Legge nome firmware
+     |  
+     |  get_fmwnumb(self)
+     |      Legge versione firmware
+     |  
+     |  get_fmwtime(self)
+     |      Legge ora firmware
+     |  
+     |  get_genmsg(self)
+     |      Legge messaggio generico
+     |  
+     |  get_hlim(self)
+     |      Legge minima altezza sull'orizzonte (gradi)
+     |  
+     |  get_lat(self)
+     |      Legge latitudine del sito (gradi)
+     |  
+     |  get_lon(self)
+     |      Legge longitudine del sito (gradi)
+     |  
+     |  get_ltime(self)
+     |      Legge tempo locale (ore)
+     |  
+     |  get_mstat(self)
+     |      Legge stato allineamento montatura
+     |  
+     |  get_ntemp(self)
+     |      Legge numero di sensori di temperatura
+     |  
+     |  get_olim(self)
+     |      Legge massima altezza sull'orizzonte (gradi)
+     |  
+     |  get_onstep_value(self, value)
+     |      Legge valore parametro OnStep (per tabella: gos?)
+     |  
+     |  get_pside(self)
+     |      Legge lato di posizione del braccio (E,W, N:non.disp.)
+     |  
+     |  get_status(self)
+     |      Legge stato telescopio. Per tabella stati: gst?
+     |  
+     |  get_target_de(self)
+     |      Legge declinazione oggetto (gradi)
+     |  
+     |  get_target_deh(self)
+     |      Legge declinazione oggetto (gradi, alta precisione)
+     |  
+     |  get_target_ra(self)
+     |      Legge ascensione retta oggetto (ore)
+     |  
+     |  get_target_rah(self)
+     |      Legge ascensione retta oggetto (ore, alta precisione)
+     |  
+     |  get_temp(self, num)
+     |      Legge sensore temperatura n
+     |  
+     |  get_timefmt(self)
+     |      Legge formato ora
+     |  
+     |  get_trate(self)
+     |      Legge frequenza di tracking (Hz)
+     |  
+     |  get_tsid(self)
+     |      Legge tempo sidereo (ore)
+     |  
+     |  get_utcoffset(self)
+     |      Legge offset UTC (ore)
+     |  
+     |  goto_home(self)
+     |      Muove telescopio a posizione HOME
+     |  
+     |  last_command(self)
+     |      Riporta ultimo comando LX200
+     |  
+     |  last_error(self)
+     |      Riporta ultimo messaggio di errore
+     |  
+     |  last_reply(self)
+     |      Riporta ultima risposta LX200
+     |  
+     |  move_east(self)
+     |      Muove telescopio direz. est
+     |  
+     |  move_north(self)
+     |      Muove telescopio direz. nord
+     |  
+     |  move_south(self)
+     |      Muove telescopio direz. sud
+     |  
+     |  move_target(self)
+     |      Muove telescopio al target definito. Risposta: vedi mvt?
+     |  
+     |  move_west(self)
+     |      Muove telescopio direz. ovest
+     |  
+     |  ontrack(self)
+     |      Abilita modo On Track
+     |  
+     |  opc_init(self)
+     |      Invia comandi di inizializzazione per telescopio OPC
+     |  
+     |  park(self)
+     |      Mette telescopio a riposo (PARK)
+     |  
+     |  pulse_guide_east(self, dtime)
+     |      Movimento ad impulso in direzione est (dtime=20-16399)
+     |  
+     |  pulse_guide_north(self, dtime)
+     |      Movimento ad impulso in direzione nord (dtime=20-16399)
+     |  
+     |  pulse_guide_south(self, dtime)
+     |      Movimento ad impulso in direzione sud (dtime=20-16399)
+     |  
+     |  pulse_guide_west(self, dtime)
+     |      Movimento ad impulso in direzione ovest (dtime=20-16399)
+     |  
+     |  reset_home(self)
+     |      Imposta posizione HOME
+     |  
+     |  rot_cclkwise(self)
+     |      Muove rotatore in senso antiorario (incremento prefissato)
+     |  
+     |  rot_clkwise(self)
+     |      Muove rotatore in senso orario (incremento prefissato)
+     |  
+     |  rot_disable(self)
+     |      Disabilita rotatore
+     |  
+     |  rot_enable(self)
+     |      Abilita rotatore
+     |  
+     |  rot_getpos(self)
+     |      Legge posizione rotatore (gradi)
+     |  
+     |  rot_gohome(self)
+     |      Muove rotatore a posizione home
+     |  
+     |  rot_reverse(self)
+     |      Inverte direzione movimento rotatore
+     |  
+     |  rot_setcont(self)
+     |      Imposta movimento continuo per rotatore
+     |  
+     |  rot_sethome(self)
+     |      Imposta posizione corrente rotatore come HOME
+     |  
+     |  rot_setincr(self, incr)
+     |      Imposta incremento per movimento rotatore (1:1 grado, 2:5 gradi, 3: 10 gradi)
+     |  
+     |  rot_setpos(self, deg)
+     |      Imposta posizione rotatore (gradi)
+     |  
+     |  rot_topar(self)
+     |      Muove rotatore ad angolo parallattico
+     |  
+     |  set_alt(self, deg)
+     |      Imposta altezza oggetto (gradi)
+     |  
+     |  set_antib_dec(self, stpar)
+     |      Imposta valore anti backlash declinazione (steps per arcsec)
+     |  
+     |  set_antib_ra(self, stpar)
+     |      Imposta valore anti backlash ascensione retta (steps per arcsec)
+     |  
+     |  set_az(self, deg)
+     |      Imposta azimut oggetto (0..360 gradi)
+     |  
+     |  set_date(self)
+     |      Imposta data da clock del PC
+     |  
+     |  set_de(self, deg)
+     |      Imposta declinazione oggetto (gradi)
+     |  
+     |  set_lat(self, deg)
+     |      Imposta latitudine locale (gradi)
+     |  
+     |  set_lon(self, deg)
+     |      Imposta longitudine locale (gradi)
+     |  
+     |  set_max_alt(self, deg)
+     |      Imposta altezza massima raggiungibile (60..90 gradi)
+     |  
+     |  set_min_alt(self, deg)
+     |      Imposta altezza minima raggiungibile (-30..30 gradi)
+     |  
+     |  set_onstep_00(self, value)
+     |      Imposta OnStep indexAxis1 [integer]
+     |  
+     |  set_onstep_01(self, value)
+     |      Imposta OnStep indexAxis2 [integer]
+     |  
+     |  set_onstep_02(self, value)
+     |      Imposta OnStep altCor [integer]
+     |  
+     |  set_onstep_03(self, value)
+     |      Imposta OnStep azmCor [integer]
+     |  
+     |  set_onstep_04(self, value)
+     |      Imposta OnStep doCor [integer]
+     |  
+     |  set_onstep_05(self, value)
+     |      Imposta OnStep pdCor [integer]
+     |  
+     |  set_onstep_06(self, value)
+     |      Imposta OnStep dfCor [integer]
+     |  
+     |  set_onstep_07(self, value)
+     |      Imposta OnStep ffCor (inutilizz. per montatura equ) [integer]
+     |  
+     |  set_onstep_08(self, value)
+     |      Imposta OnStep tfCor [integer]
+     |  
+     |  set_onstep_92(self, value)
+     |      Imposta OnStep MaxRate (max. accelerazione) [integer]
+     |  
+     |  set_onstep_93(self, value)
+     |      Imposta OnStep MaxRate preset (max. accelerazione) [1-5: 200%,150%,100%,75%,50%]
+     |  
+     |  set_onstep_95(self, value)
+     |      Imposta OnStep autoMeridianFlip [0: disabilita, 1: abilita]
+     |  
+     |  set_onstep_96(self, value)
+     |      Imposta OnStep preferredPierSide [E, W, B (best)]
+     |  
+     |  set_onstep_97(self, value)
+     |      Imposta OnStep cicalino [0: disabilita, 1: abilita]
+     |  
+     |  set_onstep_98(self, value)
+     |      Imposta pausa a HOME all'inversione meridiano [0: disabilita, 1: abilita]
+     |  
+     |  set_onstep_99(self, value)
+     |      Imposta OnStep continua dopo pausa a HOME [0: disabilita, 1: abilita]
+     |  
+     |  set_onstep_e9(self, value)
+     |      Imposta OnStep minuti dopo il meridiano EST [integer]
+     |  
+     |  set_onstep_ea(self, value)
+     |      Imposta OnStep minuti dopo il meridiano OVEST [integer]
+     |  
+     |  set_park(self)
+     |      Imposta posizione PARK
+     |  
+     |  set_ra(self, hours)
+     |      Imposta ascensione retta oggetto (ore)
+     |  
+     |  set_slew(self, spec)
+     |      Imposta velocità a G:Guide, C:Center, M:Move, F:Fast, S:Slew o 0-9
+     |  
+     |  set_slew_dec(self, degsec)
+     |      Imposta velocità slew asse declinazione in gradi/sec
+     |  
+     |  set_slew_ha(self, degsec)
+     |      Imposta velocità slew asse orario in gradi/sec
+     |  
+     |  set_time(self)
+     |      Imposta tempo telescopio da clock del PC
+     |  
+     |  set_trate(self, rate)
+     |      Imposta frequenza di tracking (Hz)
+     |  
+     |  set_tsid(self)
+     |      Imposta tempo sidereo da clock PC
+     |  
+     |  sid_clock_decr(self)
+     |      Decrementa frequenza clock sidereo di 0.02 Hz
+     |  
+     |  sid_clock_incr(self)
+     |      Incrementa frequenza clock sidereo di 0.02 Hz
+     |  
+     |  sid_clock_reset(self)
+     |      Riporta frequenza clock sidereo a valore iniziale
+     |  
+     |  stop(self)
+     |      Ferma movimento telescopio
+     |  
+     |  stop_east(self)
+     |      Ferma movimento in direzione est
+     |  
+     |  stop_north(self)
+     |      Ferma movimento in direzione nord
+     |  
+     |  stop_south(self)
+     |      Ferma movimento in direzione sud
+     |  
+     |  stop_west(self)
+     |      Ferma movimento in direzione ovest
+     |  
+     |  sync_radec(self)
+     |      Sincronizza con coordinate oggetto target
+     |  
+     |  sync_taradec(self)
+     |      Sincronizza con coordinate oggetto corrente dal database
+     |  
+     |  track_king(self)
+     |      Imposta frequenza di tracking king
+     |  
+     |  track_lunar(self)
+     |      Imposta frequenza di tracking lunare
+     |  
+     |  track_off(self)
+     |      Disabilita tracking
+     |  
+     |  track_on(self)
+     |      Abilita tracking
+     |  
+     |  track_one(self)
+     |      Imposta tracking su singolo asse (disab. DEC tracking)
+     |  
+     |  track_refrac_off(self)
+     |      Disabilita correzione per rifrazione su tracking
+     |  
+     |  track_refrac_on(self)
+     |      Abilita correzione per rifrazione su tracking
+     |  
+     |  track_sidereal(self)
+     |      Imposta frequenza di tracking siderea
+     |  
+     |  track_solar(self)
+     |      Imposta frequenza di tracking solare
+     |  
+     |  track_two(self)
+     |      Imposta tracking sui due assi
+     |  
+     |  unpark(self)
+     |      Mette telescopio operativo (UNPARK)
+     |  
+     |  ----------------------------------------------------------------------
+     |  Data descriptors defined here:
+     |  
+     |  __dict__
+     |      dictionary for instance variables (if defined)
+     |  
+     |  __weakref__
+     |      list of weak references to the object (if defined)
+
+FUNCTIONS
+    get_version()
+        Riporta informazioni su versione
+    
+    main()
+        Invio comandi da console e test
+
+VERSION
+    2.5
+
+DATE
+    Marzo 2020
+
+AUTHOR
+    L.Fini, L.Naponiello
+
+FILE
+    /home/lfini/OPC/TCS/telecomm.py
+
+
