@@ -27,8 +27,8 @@ import pprint
 from domecomm import DomeCommands, StatiMovimento, DomeErrors, StatiLuce, StatiVano, StatiSync
 import astro
 
-__version__ = "1.3"
-__date__ = "Marzo 2019"
+__version__ = "1.4"
+__date__ = "Giugno 2020"
 __author__ = "Luca Fini"
 
 LINEAR = 0
@@ -415,8 +415,21 @@ class LX200(Telescope):
         sgn = "+" if self.utc_offset >= 0 else "-"
         return sgn+"%04.1f#"%abs(self.utc_offset)
 
+    def move_dir(self, dirc):
+        "Muovi in direzione data"
+        return ""
+
+    def stop_dir(self, dirc):
+        "Interrompi movimento in direzione data"
+        return ""
+
+    def pulse_guide(self, dirc, time):
+        "Comando pulse-guide TBD"
+        return ""
+
     def execute(self, command):
         "Esecuzione comando telescopio"
+        print(">", command)
         try:
             if command[:3] == b":Sr":    # Comando SrHH:MM:SS - set target RA
                 hhh, mmm, sss = (int(command[3:5]), int(command[6:8]), int(command[9:11]))
@@ -465,10 +478,21 @@ class LX200(Telescope):
                         if VERBOSE:
                             print("Errore conversione UTC offset:", command[3:8])
                         ret = "0"
-            elif command[:3] == b":MS":   # Comando MS - Slew to target
-                self.ra_axis.goto(self.target.ras)
-                self.de_axis.goto(self.target.dec)
-                ret = "0"
+            elif command[:2] == b":M":    # Comandi di movimento
+                if command[2] == b"S":    # Comando MS - Slew to target
+                    self.ra_axis.goto(self.target.ras)
+                    self.de_axis.goto(self.target.dec)
+                    ret = ""
+                elif command[2] in b"snew":   # Comando Msd - Muovi in direzione data
+                    ret = self.move_dir(command[2])
+            elif command[:2] == b":Q":    # Comandi stop
+                if len(command) > 2:
+                    drc = command[2]
+                else:
+                    drc = None
+                ret = self.stop_dir(drc)
+            elif command[:3] == b":Mg":   # Comando Mgdnnn - Pulse-guide
+                ret = self.pulse_guide(command[3], int(command[4:]))
             elif command[:3] == b":GA":   # Comando GA - Get telescope altitude
                 ret = self.get_current_alt()
             elif command[:3] == b":GC":   # Comando GA - Get telescope date
