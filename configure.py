@@ -28,8 +28,7 @@ SHOW_CONFIG = """
         Latitudine Osservatorio: {lat} rad.
        Longitudine Osservatorio: {lon} rad.
 
-     Indirizzo IP server cupola: {dome_ip}
-             Port server cupola: {dome_port}
+    Identificatore ASCOM cupola: {dome_ascom}
 
  Indirizzo IP server telescopio: {tel_ip}
          Port server telescopio: {tel_port}
@@ -63,7 +62,7 @@ def get_config():
         with open(fname) as fpt:
             config = json.load(fpt)
         config["filename"] = fname
-    except Exception:
+    except FileNotFoundError:
         config = {}
     return config
 
@@ -81,7 +80,7 @@ def str2rad(line):
     rad = astro.dms2rad(*three)
     return rad
 
-class MakeConfig(tk.Frame):
+class MakeConfig(tk.Frame):          # pylint: disable=R0901
     "Crea file di configurazione"
     def __init__(self, parent):
         tk.Frame.__init__(self, parent, padx=10, pady=10)
@@ -92,9 +91,7 @@ class MakeConfig(tk.Frame):
         tk.Label(self.body,
                  text="Longitudine osservatorio (rad): ").grid(row=1, column=0, sticky=tk.E)
         tk.Label(self.body,
-                 text="Indirizzo IP server cupola: ").grid(row=2, column=0, sticky=tk.E)
-        tk.Label(self.body,
-                 text="Port IP server cupola: ").grid(row=3, column=0, sticky=tk.E)
+                 text="Identificatore ASCOM cupola: ").grid(row=2, column=0, sticky=tk.E)
         tk.Label(self.body,
                  text="Indirizzo IP server telescopio: ").grid(row=4, column=0, sticky=tk.E)
         tk.Label(self.body,
@@ -107,15 +104,10 @@ class MakeConfig(tk.Frame):
         the_lon = cur_conf.get("lon", str(LON_OPC_RAD))
         self.lon.insert(0, the_lon)
         self.lon.grid(row=1, column=1)
-        self.dome_ip = tk.Entry(self.body)
-        the_dome_ip = cur_conf.get("dome_ip", "")
-        self.dome_ip.insert(0, the_dome_ip)
-        self.dome_ip.grid(row=2, column=1)
-        self.dome_port = tk.Entry(self.body)
-        the_dome_port = cur_conf.get("dome_port")
-        the_dome_port = str(the_dome_port) if the_dome_port else ""
-        self.dome_port.insert(0, the_dome_port)
-        self.dome_port.grid(row=3, column=1)
+        self.dome_ascom = tk.Entry(self.body)
+        the_dome_ascom = cur_conf.get("dome_ascom", "")
+        self.dome_ascom.insert(0, the_dome_ascom)
+        self.dome_ascom.grid(row=2, column=1)
         self.tel_ip = tk.Entry(self.body)
         the_tel_ip = cur_conf.get("tel_ip", "")
         self.tel_ip.insert(0, the_tel_ip)
@@ -135,16 +127,14 @@ class MakeConfig(tk.Frame):
         try:
             rlat = float(self.lat.get())
             rlon = float(self.lon.get())
-            dome_ip = self.dome_ip.get()
-            dome_port = int(self.dome_port.get())
+            dome_ascom = self.dome_ascom.get()
             tel_ip = self.tel_ip.get()
             tel_port = int(self.tel_port.get())
         except Exception as excp:
             msg_text = "\nErrore formato dati: \n\n   %s\n"%str(excp)
         else:
-            config = {"lat": rlat, "lon": rlon, "dome_ip": dome_ip,
-                      "dome_port": dome_port, "tel_ip": tel_ip,
-                      "tel_port": tel_port, "filename": fname}
+            config = {"lat": rlat, "lon": rlon, "dome_ascom": dome_ascom,
+                      "tel_ip": tel_ip, "tel_port": tel_port, "filename": fname}
             try:
                 with open(fname, "w") as fpt:
                     json.dump(config, fpt, indent=2)
@@ -157,6 +147,7 @@ class MakeConfig(tk.Frame):
         msg.pack()
 
     def cancel(self):
+        "Annullamento operazione"
         self.body.destroy()
         msg = WarningMsg(self, "Operazione annullata")
         msg.pack()

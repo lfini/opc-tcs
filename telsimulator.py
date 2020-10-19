@@ -1,48 +1,40 @@
 #!/usr/bin/python3
 """
-Simulatore osservatorio OPC.
-
-Simula movimenti cupola e telescopio
+Simulatore telescopio
 
 Uso:
-      python3 domesimulator.py [-v] [-s] [-t] [-c]
+      python3 telsimulator.py [-v]
 
 dove:
       -v:  modo verboso: scrive su stdout i comandi e le risposte
-      -s:  Start con cupola in posizione "insync"
-      -c:  Start solo simulatore cupola
-      -t:  Start solo simulatore telescopio
 
 """
 
 import sys
 import socket
-import json
 from threading import Thread
 import random
 import time
 import math
 import pprint
 
-from domecomm import DomeCommands, StatiMovimento, DomeErrors, StatiLuce, StatiVano, StatiSync
 import astro
 
-__version__ = "1.4"
-__date__ = "Giugno 2020"
+__version__ = "1.0"
+__date__ = "Ottobre 2020"
 __author__ = "Luca Fini"
 
 LINEAR = 0
 ROTATOR = 1
 
-VERBOSE = False
-CUPOLA = None
+class GLOB:          # pylint: disable=R0903
+    verbose = False
 
 MY_PID = None
 
 HELP = """
 Comandi:
     h         - Aiuto
-    0         - Azzera posizione cupola
     e/w/n     - Set posizione braccio
     s dec ra  - Set posizione telescopio
     t         - Mostra stato telescopio
@@ -84,11 +76,9 @@ def dms_star_encode(value, with_sign=True, precision="S"):
         ret = "%s%02d*%02d:%02d.%03d#"%(sign, degs, mins, isec, frac)
     if with_sign:
         return ret
-    else:
-        if ret[0] == "+":
-            return ret[1:]
-        else:
-            raise ValueError
+    if ret[0] == "+":
+        return ret[1:]
+    raise ValueError
 
 def hms_colon_encode(value, precision="S"):
     "Converte valore in formato HH:MM:SS#"
@@ -111,13 +101,11 @@ def dddmm_star_encode(value, with_sign=True, precision="S"):
         ret = "%s%03d*%02d#"%_convert(value, 360)[:-1]
     if with_sign:
         return ret
-    else:
-        if ret[0] == "+":
-            return ret[1:]
-        else:
-            raise ValueError
+    if ret[0] == "+":
+        return ret[1:]
+    raise ValueError
 
-class Movement(Thread):
+class Movement(Thread):          # pylint: disable=R0902
     "Simulatore di asse mobile"
     def __init__(self, limits, maxspeed=1.0, timestep=1.0, insync=False):
         Thread.__init__(self, daemon=True)
@@ -138,7 +126,7 @@ class Movement(Thread):
 
     def set(self, pos):
         "Imposta posizione"
-        if self.movement == 0 and pos < self.limits[1] and pos >= self.limits[0]:
+        if self.movement == 0 and self.limits[0] <= pos <= self.limits[1]:
             self.position = pos
 
     def setspeed(self, speed):
@@ -153,14 +141,12 @@ class Movement(Thread):
         if self.movement != 0 and self.movement != direction:
             self.stop()
         self.movement = direction
-        return DomeErrors.OK
 
     def stop(self):
         "Comando stop"
         self.movement = 0
         self.syncing = 0
         self.going = 0
-        return DomeErrors.OK
 
     def run(self):
         "Metodo da implementare nei discendenti"
@@ -277,7 +263,7 @@ class CameraRotator(Rotator):
     def __init__(self):
         Rotator.__init__(self, (-180, 180.), self.MAXSPEED, self.TIMESTEP, True)
 
-class Target:
+class Target:                  # pylint: disable=R0903
     "Definizione del target"
     def __init__(self, ras=0.0, dec=0.0):
         self.ras = ras
@@ -314,7 +300,7 @@ class Telescope(Thread):
                 "target_de": self.target.dec,
                 "target_ra": self.target.ras}
 
-class LX200(Telescope):
+class LX200(Telescope):         # pylint: disable=R0904
     "LX200 protocol telescope"
     def __init__(self):
         Telescope.__init__(self)
@@ -415,21 +401,20 @@ class LX200(Telescope):
         sgn = "+" if self.utc_offset >= 0 else "-"
         return sgn+"%04.1f#"%abs(self.utc_offset)
 
-    def move_dir(self, dirc):
+    def move_dir(self, _unused):
         "Muovi in direzione data"
         return ""
 
-    def stop_dir(self, dirc):
+    def stop_dir(self, _unused):
         "Interrompi movimento in direzione data"
         return ""
 
-    def pulse_guide(self, dirc, time):
+    def pulse_guide(self, _dirc, _time):
         "Comando pulse-guide TBD"
         return ""
 
-    def execute(self, command):
+    def execute(self, command):           # pylint: disable=R0912
         "Esecuzione comando telescopio"
-        print(">", command)
         try:
             if command[:3] == b":Sr":    # Comando SrHH:MM:SS - set target RA
                 hhh, mmm, sss = (int(command[3:5]), int(command[6:8]), int(command[9:11]))
@@ -468,14 +453,14 @@ class LX200(Telescope):
                     val = float(command[3:8])
                 except:
                     ret = "0"
-                    if VERBOSE:
+                    if GLOB.verbose:
                         print("Errore conversione UTC offset:", command[3:8])
                 else:
                     if -12 <= val <= 12:
                         self.utc_offset = val
                         ret = "1"
                     else:
-                        if VERBOSE:
+                        if GLOB.verbose:
                             print("Errore conversione UTC offset:", command[3:8])
                         ret = "0"
             elif command[:2] == b":M":    # Comandi di movimento
@@ -564,7 +549,7 @@ class LX200(Telescope):
             else:
                 ret = "0"
         except Exception as excp:
-            if VERBOSE:
+            if GLOB.verbose:
                 print("Tel Exception:", str(excp))
             ret = "0"
         return ret.encode("ascii")
@@ -590,259 +575,18 @@ class LX200(Telescope):
                 if not achar:
                     break
                 if achar == b"#":
-                    if VERBOSE:
-                        print("Comando telescopio da %s %s#"%(address[0], command.decode("ascii")), end=" ")
+                    if GLOB.verbose:
+                        print("Comando telescopio da %s %s#"%(address[0],
+                                                              command.decode("ascii")), end=" ")
                     ret = self.execute(command)
                     client.sendall(ret)
                     client.shutdown(socket.SHUT_RDWR)
                     client.close()
-                    if VERBOSE:
+                    if GLOB.verbose:
                         print("-", ret.decode("ascii"), flush=True)
                     command = b""
                     break
-                else:
-                    command += achar
-
-class RotazioneCupola(Rotator):
-    "Simulatore rotazione cupola"
-    SPEED = 2.0      # Gradi al secondo
-    TIMESTEP = 0.1   # Tempo aggiornamento (sec)
-    def __init__(self, insync=False):
-        Rotator.__init__(self, (0.0, 360.0), self.SPEED, self.TIMESTEP, insync)
-
-    def internal_position(self):
-        "leggi posizione interna"
-        return self.position
-
-    def azimuth(self):
-        "leggi azimuth"
-        if self.insync:
-            return int(self.position+0.5)
-        return -1
-
-    def stato_moto(self):
-        "Leggi stato movimento dettagliato"
-        if self.movement < 0:
-            return StatiMovimento.LEFT
-        elif self.movement > 0:
-            return StatiMovimento.RIGHT
-        return StatiMovimento.STOP
-
-    def sync(self):
-        "Attiva sincronizzazione posizione"
-        if self.movement != 0:
-            self.stop()
-        self.syncing = 1
-        self.movement = -1
-        return DomeErrors.OK
-
-    def setz(self, target):
-        "Forza posizione interna"
-        if target >= 360 or target < 0:
-            return DomeErrors.ERR+" azimuth illegale (%d)"%target
-        if self.movement != 0:
-            self.stop()
-        self.position = target
-        self.insync = 1
-        return DomeErrors.OK
-
-class Vano(Linear):
-    "Siimulatore vano osservazione"
-    SPEED = 0.1      # m/s
-    TIMESTEP = 0.2   # Tempo aggiornamento (sec)
-    def __init__(self):
-        Linear.__init__(self, (0.0, 1.0), self.SPEED, self.TIMESTEP, True)
-
-    def open(self):
-        "Copmando apri vano osservativo"
-        ret = self.goto(self.limits[1])
-        if ret:
-            return DomeErrors.OK
-        return DomeErrors.ERR+" "+self.error
-
-    def close(self):
-        "Copmando chiudi vano osservativo"
-        ret = self.goto(self.limits[0])
-        if ret:
-            return DomeErrors.OK
-        return DomeErrors.ERR+" "+self.error
-
-    def stato(self):
-        "Leggi stato vano ossewrvativo"
-        if self.position > .97:
-            return StatiVano.OPEN
-        elif self.position < 0.03:
-            return StatiVano.CLOSED
-        elif self.movement < 0:
-            return StatiVano.CLOSING
-        elif self.movement > 0:
-            return StatiVano.OPENING
-        return StatiVano.ERROR
-
-class Cupola(Thread):
-    "Simulatore cupola completa"
-    def __init__(self, insync=False):
-        Thread.__init__(self, daemon=True)
-        self._stato = {"POS": -1,
-                       "LP": StatiLuce.ON,
-                       "LN": StatiLuce.OFF,
-                       "VANO": StatiVano.CLOSED,
-                       "SYNC": StatiSync.NOTSYNC,
-                       "MOV": StatiMovimento.STOP}
-
-        self.rotazione = RotazioneCupola(insync)
-        self.vano = Vano()
-        if self.rotazione.insync:
-            self._stato["SYNC"] = StatiSync.INSYNC
-
-    def stato(self):
-        "Leggi stato complessivo cupola"
-        self._stato["VANO"] = self.vano.stato()
-        self._stato["MOV"] = self.rotazione.stato_moto()
-
-        self._stato["POS"] = self.rotazione.azimuth()
-        if self.rotazione.insync:
-            self._stato["SYNC"] = StatiSync.INSYNC
-        elif self.rotazione.syncing:
-            self._stato["SYNC"] = StatiSync.SYNCING
-        else:
-            self._stato["SYNC"] = StatiSync.NOTSYNC
-
-        return DomeErrors.OK+json.dumps(self._stato)
-
-    def rotator_position(self):
-        "Riporta posizione 'fisica' del rotazione"
-        return self.rotazione.internal_position()
-
-    def sync(self):
-        "Comando sincronizza posizione cupola"
-        return self.rotazione.sync()
-
-    def lpon(self):
-        "Comando accendi luce principale"
-        if self._stato["LP"]:
-            return DomeErrors.WNG
-        self._stato["LP"] = 1
-        return DomeErrors.OK
-
-    def lpoff(self):
-        "Comando spengi luce principale"
-        if self._stato["LP"]:
-            self._stato["LP"] = 0
-            return DomeErrors.OK
-        return DomeErrors.WNG
-
-    def lnon(self):
-        "Comando accendi luce notturna"
-        if self._stato["LN"]:
-            return DomeErrors.WNG
-        self._stato["LN"] = 1
-        return DomeErrors.OK
-
-    def lnoff(self):
-        "Comando spengi luce notturna"
-        if self._stato["LN"]:
-            self._stato["LN"] = 0
-            return DomeErrors.OK
-        return DomeErrors.WNG
-
-    def left(self):
-        "Comando muovi antiorario"
-        return self.rotazione.move(-1)
-
-    def right(self):
-        "Comando muovi orario"
-        return self.rotazione.move(1)
-
-    def stop(self):
-        "Comando stop cupola"
-        if self._stato["MOV"] == StatiMovimento.STOP:
-            return DomeErrors.WNG
-        self.rotazione.stop()
-        return DomeErrors.OK
-
-    def open(self):
-        "Comando apri vano"
-        return self.vano.open()
-
-    def close(self):
-        "Comando chiudi vano"
-        return self.vano.close()
-
-    def goto(self, pos):
-        "Vai ad azimunt dato"
-        ret = self.rotazione.goto(pos)
-        if ret:
-            return DomeErrors.OK
-        return DomeErrors.ERR+" "+self.rotazione.error
-
-    def setz(self, pos):
-        "Forza posizione interna cupola"
-        ret = self.rotazione.setz(pos)
-        if ret:
-            return DomeErrors.OK
-        return DomeErrors.ERR+" "+self.rotazione.error
-
-    def execute(self, line):
-        "Esecuzione comando cupola"
-        command = line[:4]
-        if command == DomeCommands.STAT:
-            ret = self.stato()
-        elif command == DomeCommands.LPON:
-            ret = self.lpon()
-        elif command == DomeCommands.LPOF:
-            ret = self.lpoff()
-        elif command == DomeCommands.LNON:
-            ret = self.lnon()
-        elif command == DomeCommands.LNOF:
-            ret = self.lnoff()
-        elif command == DomeCommands.LEFT:
-            ret = self.left()
-        elif command == DomeCommands.RGHT:
-            ret = self.right()
-        elif command == DomeCommands.SYNC:
-            ret = self.sync()
-        elif command == DomeCommands.GOTO:
-            target = int(line[5:])
-            ret = self.goto(target)
-        elif command == DomeCommands.STOP:
-            ret = self.stop()
-        elif command == DomeCommands.OPEN:
-            ret = self.open()
-        elif command == DomeCommands.CLOS:
-            ret = self.close()
-        elif command == DomeCommands.SETZ:
-            target = int(line[5:])
-            ret = self.setz(target)
-        else:
-            ret = DomeErrors.ERR+" Comando non riconosciuto [%s]"%command
-        return ret
-
-    def run(self):
-        "Lancio simulatore cupola"
-        self.rotazione.start()
-        self.vano.start()
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('', 9752))
-        sock.listen(5)
-        print("Simulatore cupola attivo su port 9752")
-
-        while True:
-            (client, address) = sock.accept()
-            data = bytes()
-            while True:
-                ret = client.recv(1024)
-                if not ret:
-                    break
-                data += ret
-            line = data.decode("ascii").strip()
-            ret = self.execute(line)
-            client.sendall((ret+"\n").encode("ascii"))
-            client.shutdown(socket.SHUT_RDWR)
-            client.close()
-            if VERBOSE:
-                print("Comando cupola da %s: %s"%(address[0], line), "-", ret, flush=True)
+                command += achar
 
 def help_cmd():
     "Aiuto per comandi"
@@ -850,43 +594,27 @@ def help_cmd():
 
 def main():
     "Programma principale"
-    global VERBOSE
-    start_cupola = True
-    start_telescopio = True
 
     if "-h" in sys.argv:
         print(__doc__)
         sys.exit()
     if "-v" in sys.argv:
-        VERBOSE = True
-    if "-t" in sys.argv:
-        start_cupola = False
-    if "-c" in sys.argv:
-        start_telescopio = False
-    if "-s" in sys.argv:
-        insync = 1
-    else:
-        insync = 0
-    if start_cupola:
-        dome = Cupola(insync)
-        dome.start()
-    if start_telescopio:
-        telescope = LX200()
-        telescope.start()
+        GLOB.verbose = True
+    telescope = LX200()
+    telescope.start()
     time.sleep(2)
+
     while True:
         cmd = input("Comando? [h per help] ").strip()
         if not cmd:
             continue
         cmds = cmd.split()
-        if cmds[0][0].lower() == "0":
-            dome.setz(0)
-        elif cmds[0][0].lower() == "s":
+        if cmds[0][0].lower() == "s":
             telescope.set_position(float(cmds[1]), float(cmds[2]))
         elif cmds[0][0].lower() in ("e", "n", "w"):
             telescope.set_brace(cmds[0][0].upper())
         elif cmds[0][0].lower() == "v":
-            VERBOSE = not VERBOSE
+            GLOB.verbose = not GLOB.verbose
         elif cmds[0][0].lower() == "t":
             pprint.pprint(telescope.get_status(), indent=4)
         elif cmds[0][0].lower() == "q":

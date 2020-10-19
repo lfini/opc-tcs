@@ -470,7 +470,7 @@ Possibili valori di ritorno:
 
     def set_ra(self, hours):
         "Imposta ascensione retta oggetto (ore)"
-        if hours < 24. and hours >= 0.:
+        if 0. <= hours < 24.:
             _unused, hrs, mins, secs = float2ums(hours, precision=4)
             isec = int(secs)
             rest = int((secs-isec)*10000)
@@ -482,7 +482,7 @@ Possibili valori di ritorno:
 
     def set_alt(self, deg):
         "Imposta altezza oggetto (gradi)"
-        if deg >= -90. and deg <= 90.:
+        if -90. <= deg <= 90.:
             sign, degs, mins, secs = float2ums(deg, precision=3)
             sign = "+" if sign >= 0 else "-"
             cmd = _SET_ALT%(sign, degs, mins, secs)
@@ -493,7 +493,7 @@ Possibili valori di ritorno:
 
     def set_az(self, deg):
         "Imposta azimut oggetto (0..360 gradi)"
-        if deg >= 0. and deg <= 360.:
+        if 0. <= deg <= 360.:
             cmd = _SET_AZ%float2ums(deg)[1:3]
             ret = self.__send_cmd(cmd, 1)
         else:
@@ -502,7 +502,7 @@ Possibili valori di ritorno:
 
     def set_de(self, deg):
         "Imposta declinazione oggetto (gradi)"
-        if deg >= -90. and deg <= 90.:
+        if -90. <= deg <= 90.:
             sign, degs, mins, secs = float2ums(deg, precision=4)
             sign = "+" if sign >= 0 else "-"
             isec = int(secs)
@@ -515,7 +515,7 @@ Possibili valori di ritorno:
 
     def set_max_alt(self, deg):
         "Imposta altezza massima raggiungibile (60..90 gradi)"
-        if deg >= 60 and deg <= 90:
+        if 60 <= deg <= 90:
             cmd = _SET_MAXA%deg
             ret = self.__send_cmd(cmd, 1)
         else:
@@ -524,7 +524,7 @@ Possibili valori di ritorno:
 
     def set_min_alt(self, deg):
         "Imposta altezza minima raggiungibile (-30..30 gradi)"
-        if deg >= -30 and deg <= 30:
+        if -30 <= deg <= 30:
             if deg >= 0:
                 cmd = _SET_MNAP%(deg)
             else:
@@ -1020,7 +1020,7 @@ Possibili valori di ritorno:
 
     def get_temp(self, num):
         "Legge sensore temperatura n"
-        if num >= 0 and num <= 9:
+        if 0 <= num <= 9:
             cmd = _GET_TEMP%num
             ret = self.__send_cmd(cmd, True)
             return self._float_decode(ret)
@@ -1298,8 +1298,7 @@ Possibili valori di ritorno:
 ########################################################
 # Classe per il supporto del modo interattivo
 
-
-class __Executor:
+class __Executor:                     # pylint: disable=C0103
     "Esecuzione comandi interattivi"
     def __init__(self, config, verbose):
         dcom = TeleCommunicator(config["tel_ip"], config["tel_port"])
@@ -1657,7 +1656,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        import readline
+        import readline    # pylint: disable=W0611
     except:
         pass
     main()

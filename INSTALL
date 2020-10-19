@@ -5,6 +5,7 @@ una directory dedicata.
 
 le procedure si possono lanciare come nell'esempio:
 
-       python  <percorso...>/cupola.py
+       python  <percorso...>/dtracker.py
 
-TBD: verificare opportunità di creare un "installer"
+NOTA: cambiando nome in dtracker.pyw si può lanciare la procedura in modo
+      grafico (senza la finestra del prompt).

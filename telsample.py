@@ -20,7 +20,7 @@ from telecomm import TeleCommunicator
 import configure as conf
 import astro
 
-def ctrlc(signum, stack):
+def ctrlc(*_unused):
     "Received CTRL-C"
     print("Interrupted...")
     sys.exit()
@@ -49,7 +49,7 @@ def main():
     delay = float(delay)/1000
     signal.signal(signal.SIGINT, ctrlc)
     telcom = TeleCommunicator(config["tel_ip"], config["tel_port"])
-    
+
     fname = time.strftime("%Y%m%d_%H%M%S")+".dat"
     with open(fname, "w") as fpt:
         print()
@@ -58,19 +58,15 @@ def main():
         tt0 = time.time()
         while 1:
             now = time.time()
-            ar = telcom.get_current_ra()
-            de = telcom.get_current_de()
+            art = telcom.get_current_ra()
+            dec = telcom.get_current_de()
             nnn = "%.2f" % (now-tt0)
-            print(" ", nnn, de, ar, file=fpt)
-            print(" ", nnn, de, ar)
-            after=time.time()
+            print(" ", nnn, dec, art, file=fpt)
+            print(" ", nnn, dec, art)
+            after = time.time()
             ddl = delay-after+now
-            if ddl>0.0:
+            if ddl > 0.0:
                 time.sleep(ddl)
 
 if __name__ == "__main__":
     main()
-    
-
-
-

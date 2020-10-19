@@ -89,7 +89,7 @@ def loc_st_now(lon_rad=OPC.lon_rad):
                   loct[4], loct[5], utc_offset, lon_rad)
 
 # sin(ALT) = sin(DEC)*sin(LAT)+cos(DEC)*cos(LAT)*cos(HA)
-# ALT = asin(ALT) 
+# ALT = asin(ALT)
 # cos(ALT) = sqrt(1.-sin(ALT)**2)
 # sin(AZ) = cos(DEC)sin(HA)/cos(EL)
 # cos(AZ) = (sin(DEC)-sin(LAT)sin(ALT))/(cos(LAT)cos(ALT))

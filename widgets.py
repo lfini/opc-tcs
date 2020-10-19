@@ -8,8 +8,8 @@ import tkinter as tk
 
 import astro
 
-__version__ = "1.2"
-__date__ = "ottobre 2018"
+__version__ = "1.3"
+__date__ = "ottobre 2020"
 __author__ = "Luca Fini"
 
 H1_FONT = "Helvetica 18 bold"
@@ -65,7 +65,6 @@ DOWN_IMAGE = None
 
 class WidgetError(Exception):
     "Exception per errori dei widget"
-    pass
 
 class ToolTip:
     "Tooltip per widget"
@@ -121,8 +120,8 @@ def up_image():
         UP_IMAGE = tk.PhotoImage(data=UP_IMAGE_DATA)
     return UP_IMAGE
 
-class _LabelFrame(tk.Frame):
-    "Frame con etichetta e widget generico (uso locale)"
+class LabelFrame(tk.Frame):
+    "Frame con etichetta e widget generico"
     def __init__(self, parent, label=None, label_side=tk.W,
                  label_font=H4_FONT, **kw):
         tk.Frame.__init__(self, parent, **kw)
@@ -178,13 +177,13 @@ class LabelRadiobutton(tk.Frame):
         self.label.config(bg=color)
         self.button.config(bg=color)
 
-class Controller(_LabelFrame):
+class Controller(LabelFrame):
     "Widget per campo numerico con frecce +-"
     def __init__(self, parent, value=0, width=5, lower=MIN, upper=MAX,
                  font=H12_FONT, step=1, circular=False,
                  label=None, label_font=H4_FONT, label_side=tk.W, **kw):
-        _LabelFrame.__init__(self, parent, label=label, label_font=label_font,
-                             label_side=label_side, **kw)
+        LabelFrame.__init__(self, parent, label=label, label_font=label_font,
+                            label_side=label_side, **kw)
         self.step = step
         self.value = value
         self.lower = lower
@@ -246,7 +245,8 @@ class Announce(tk.Frame):
         tk.Frame.__init__(self, master, **kargs)
         self.lines = []
         while nlines:
-            self.lines.append(Field(self, border=0, width=width, font=H12_FONT, expand=1, fill=tk.X))
+            self.lines.append(Field(self, border=0, width=width,
+                                    font=H12_FONT, expand=1, fill=tk.X))
             nlines -= 1
         for llne in self.lines:
             llne.pack(expand=1, fill=tk.X)
@@ -337,7 +337,7 @@ class CoordEntry(tk.Frame):
         return float("nan")
 
     def set(self, value, _sign=False):
-        "Assrgna il valore"
+        "Assegna il valore"
         self.clear()
         ddd, mmm, sss = astro.float2ums(value)
         if _sign:
@@ -353,13 +353,13 @@ class CoordEntry(tk.Frame):
         self.mnt.delete(0, tk.END)
         self.sec.delete(0, tk.END)
 
-class CButton(_LabelFrame):
+class CButton(LabelFrame):
     "Bottone colorabile con etichetta opzionale"
     def __init__(self, parent, name, text="", color=None, font=H4_FONT,
                  width=None, command=None, padx=None, pady=None,
                  label=None, label_side=tk.W, label_font=H4_FONT, **kw):
-        _LabelFrame.__init__(self, parent, label=label,
-                             label_side=label_side, label_font=label_font, **kw)
+        LabelFrame.__init__(self, parent, label=label,
+                            label_side=label_side, label_font=label_font, **kw)
         self.name = name
         if command:
             _command = lambda name=name: command(name)
@@ -367,9 +367,12 @@ class CButton(_LabelFrame):
             _command = None
         self.button = tk.Button(self, text=text, font=font, width=width,
                                 padx=padx, pady=pady, command=_command)
-        self.defc = self.cget("bg")
         self.add_widget(self.button)
-        self.set(color)
+        if color:
+            self.defc = color
+        else:
+            self.defc = self.cget("bg")
+        self.set(self.defc)
 
     def set(self, color):
         "Imposta colore del bottone"
@@ -382,13 +385,13 @@ class CButton(_LabelFrame):
         "Azzera  bottone"
         self.set(None)
 
-class MButton(_LabelFrame):
+class MButton(LabelFrame):
     "Bottone Multi-icona a piu stati con Label"
     def __init__(self, parent, name, shape, size, value=None,
                  label=None, label_side=tk.W, label_font=H4_FONT,
                  command=None, **kw):
-        _LabelFrame.__init__(self, parent, label=label,
-                             label_side=label_side, label_font=label_font, **kw)
+        LabelFrame.__init__(self, parent, label=label,
+                            label_side=label_side, label_font=label_font, **kw)
         self.name = name
         self.status = 0
         self.shape = shape
@@ -436,23 +439,23 @@ class FrameTitle(tk.Frame):
         self.body = tk.Frame(self)
         self.body.pack(expand=1, fill=tk.BOTH)
 
-class Field(_LabelFrame):
+class Field(LabelFrame):
     "Widget per display di stringa generica"
     def __init__(self, parent, bg="black", fg="lightgreen",
                  font="TkDefaultFont", width=10, text="",
                  label=None, label_side=tk.W, label_font=H4_FONT,
                  expand=None, fill=None, **kw):
-        _LabelFrame.__init__(self, parent, label=label,
-                             label_side=label_side, label_font=label_font, **kw)
+        LabelFrame.__init__(self, parent, label=label,
+                            label_side=label_side, label_font=label_font, **kw)
         self.add_widget(tk.Label(self, text=text, bg=bg, fg=fg, width=width,
                                  font=font, border=1, relief=tk.SUNKEN))
 
-    def set(self, text):
+    def set(self, text, **kw):
         "Imposta valore campo"
         if not text:
             self.clear()
         else:
-            self.wdg.config(text=text)
+            self.wdg.config(text=text, **kw)
 
     def clear(self):
         "Azzera campo"
@@ -495,7 +498,7 @@ class Coord(Field):
         if value is None:
             self.clear()
             return
-        strv = "%d:%2.2d:%2.2d"%dms
+        strv = "%d:%2.2d:%2.2d"%dms[1:]
         Field.set(self, strv)
 
     def get(self):
@@ -567,6 +570,9 @@ def main():
     fld = Number(destra, label="Campo numerico: ", _format="%.2f")
     fld.pack()
     fld.set(1234)
+    crd = Coord(destra, label="Coordinata: ")
+    crd.pack()
+    crd.set(-137.34)
     destra.pack(side=tk.LEFT, anchor=tk.N)
     root.mainloop()
 
