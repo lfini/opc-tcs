@@ -8,8 +8,8 @@ import tkinter as tk
 
 import astro
 
-__version__ = "1.3"
-__date__ = "ottobre 2020"
+__version__ = "1.5"
+__date__ = "dicembre 2020"
 __author__ = "Luca Fini"
 
 H1_FONT = "Helvetica 18 bold"
@@ -60,8 +60,36 @@ DOWN_IMAGE_DATA = """R0lGODlhCgAKAOMMAAAAAAYHCQQIDQcJDAcKDAgLDgkNEwkOFAoPFQoPFgw
 /////yH+EUNyZWF0ZWQgd2l0aCBHSU1QACH5BAEKAA8ALAAAAAAKAAoAAAQfcIlJp3og6/ze2VnQ
 YeD4GBthktyaZMXatTIyyPgTAQA7"""
 
-UP_IMAGE = None
-DOWN_IMAGE = None
+PLUS_IMAGE_DATA = """
+R0lGODdhDAAMAOeeAAAAAAABAQEBAAABBQABBgMEBgAFDAMFCAUHCAEJFAYJDgcLEgMMGQsNEAEQ
+IgoPFgoQGQITKAUTJwQUKA4WHg8YJAoZLRIcKBUcJRQdJw0fNxAlQRgmORsmMx4qOiAtPiUwPR0y
+TiQzSCM3Tyo4SyI6Wiw+VC1EZDVEWDdHXjxMYTdOajdRcj1TbT1Wd0dac01edUtjgVJid2RkZGZm
+ZlNphWdnZ2pqalNukVVukFxwiVtzkWNzhnV1dWl3iml5jmR6lHl5eXt7e3x8fH19fX5+fn9/f4CA
+gG2Dn3CDmoGBgYKCgnqGloWFhXKIpHWKpX+JmHiLon6MnYuLi4GQpIKSqISYsoyZqo+ZpZCbqY2c
+sJScpZGerZOfrpChtJ2jq5qksJylr6GmrZ+otKCptKKqtaWqsqarsaastKysrK2trauusayusKmv
+tqyvsqyvs6+wsq2xt6+xtLCxs62yuLGysrGys7KysrOysrKztLOzsrOzs7SzsrSzs7G0t7S0tLW0
+srS0tbW0s7O1tre1s7a2tbe2s7e2tLi2tLi3tbm3tLi4uLy5try6uL+/v8DAwMHBwcLCwsPDw8jI
+yM3Nzc7Ozs/Pz9HR0dra2tvb29zc3N3d3d7e3t/f3///////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////ywAAAAADAAMAAAIVQAxCRxI
+ENOiS3cS3tmzR+GdJggT7gFhQ+EeiBY7zLCIkeEfjQwZQpzYoUOBBiVB/Bk5o2UDEC1nrIy4UCNH
+mntsSsQokeLNkHv+AL24qInRo0iFBAQAOw=="""
+
+MINUS_IMAGE_DATA = """
+R0lGODdhDAAMAOMPACgoKDk5OWJhYGdnZmhnZnt7e4SEhLKysrOzs7S0tLe3t9PT09jY2NnZ2dra
+2v///ywAAAAADAAMAAAEL1CtSasz6Oi9G+Yg84GbiJwoeohJALxwgJiEYN/DPJLrTpo8jSmVOjQK
+hqRyqYgAADs="""
+
+
+class IMGS:              # pylint: disable=R0903
+    "Per la persistenza delle immagini"
+    up_image = None
+    down_image = None
+    plus_image = None
+    minus_image = None
 
 class WidgetError(Exception):
     "Exception per errori dei widget"
@@ -106,63 +134,68 @@ class ToolTip:
         if self.twdg:
             self.twdg.destroy()
 
-def down_image():
+def down_image(mode):
     "crea immagine per freccia in giu"
-    global DOWN_IMAGE
-    if not DOWN_IMAGE:
-        DOWN_IMAGE = tk.PhotoImage(data=DOWN_IMAGE_DATA)
-    return DOWN_IMAGE
+    if mode.startswith("a"):
+        if not IMGS.down_image:
+            IMGS.down_image = tk.PhotoImage(data=DOWN_IMAGE_DATA)
+        return IMGS.down_image
+    if not IMGS.minus_image:
+        IMGS.minus_image = tk.PhotoImage(data=MINUS_IMAGE_DATA)
+    return IMGS.minus_image
 
-def up_image():
+def up_image(mode):
     "crea immagine per freccia in su"
-    global UP_IMAGE
-    if not UP_IMAGE:
-        UP_IMAGE = tk.PhotoImage(data=UP_IMAGE_DATA)
-    return UP_IMAGE
+    if mode.startswith("a"):
+        if not IMGS.up_image:
+            IMGS.up_image = tk.PhotoImage(data=UP_IMAGE_DATA)
+        return IMGS.up_image
+    if not IMGS.plus_image:
+        IMGS.plus_image = tk.PhotoImage(data=PLUS_IMAGE_DATA)
+    return IMGS.plus_image
 
-class LabelFrame(tk.Frame):
+class LabelFrame(tk.Frame):              # pylint: disable=R0901
     "Frame con etichetta e widget generico"
     def __init__(self, parent, label=None, label_side=tk.W,
                  label_font=H4_FONT, **kw):
-        tk.Frame.__init__(self, parent, **kw)
+        super().__init__(parent, **kw)
         self._side = label_side
         if label is not None:
             self.label = tk.Label(self, text=label, font=label_font)
         else:
             self.label = None
-        self.wdg = None
+        self.widget = None
 
     def add_widget(self, widget, expand=None, fill=None):
         "Inserisce widget"
-        if self.wdg:
+        if self.widget:
             raise WidgetError("Widget già definito")
-        self.wdg = widget
+        self.widget = widget
         if self._side == tk.N:
             if self.label:
                 self.label.pack(side=tk.TOP, expand=expand, fill=fill)
-            self.wdg.pack(side=tk.TOP, expand=expand, fill=fill)
+            self.widget.pack(side=tk.TOP, expand=expand, fill=fill)
         elif self._side == tk.S:
-            self.wdg.pack(side=tk.TOP, expand=expand, fill=fill)
+            self.widget.pack(side=tk.TOP, expand=expand, fill=fill)
             if self.label:
                 self.label.pack(side=tk.TOP, expand=expand, fill=fill)
         elif self._side == tk.E:
-            self.wdg.pack(side=tk.LEFT, expand=expand, fill=fill)
+            self.widget.pack(side=tk.LEFT, expand=expand, fill=fill)
             if self.label:
                 self.label.pack(side=tk.LEFT, expand=expand, fill=fill)
         else:
             if self.label:
                 self.label.pack(side=tk.LEFT, expand=expand, fill=fill)
-            self.wdg.pack(side=tk.LEFT, expand=expand, fill=fill)
+            self.widget.pack(side=tk.LEFT, expand=expand, fill=fill)
 
     def set_label(self, text):
         "Aggiorna testo della label"
         self.label.config(text=text)
 
-
-class LabelRadiobutton(tk.Frame):
+class LabelRadiobutton(tk.Frame):              # pylint: disable=R0901
     "Radiobutton con label"
     def __init__(self, parent, label, variable, value):
-        tk.Frame.__init__(self, parent)
+        super().__init__(parent)
         self.button = tk.Radiobutton(self, variable=variable, value=value)
         self.button.pack(side=tk.LEFT)
         self.label = tk.Label(self, text=label, font=H4_FONT)
@@ -177,29 +210,39 @@ class LabelRadiobutton(tk.Frame):
         self.label.config(bg=color)
         self.button.config(bg=color)
 
-class Controller(LabelFrame):
+class Controller(LabelFrame):              # pylint: disable=R0901
     "Widget per campo numerico con frecce +-"
     def __init__(self, parent, value=0, width=5, lower=MIN, upper=MAX,
-                 font=H12_FONT, step=1, circular=False,
+                 font=H12_FONT, step=1, circular=False, mode="arrow", fmt="%d",
                  label=None, label_font=H4_FONT, label_side=tk.W, **kw):
-        LabelFrame.__init__(self, parent, label=label, label_font=label_font,
-                            label_side=label_side, **kw)
+        super().__init__(parent, label=label, label_font=label_font,
+                         label_side=label_side, **kw)
         self.step = step
         self.value = value
         self.lower = lower
         self.upper = upper
+        self.fmt = fmt
         self.circular = circular
         container = tk.Frame(self)
         self.entry = tk.Entry(container, width=width, font=font)
         self.entry.pack(side=tk.LEFT)
         btframe = tk.Frame(container)
-        bup = tk.Button(btframe, image=up_image(), command=self.incr)
-        bup.pack(side=tk.TOP)
-        bdown = tk.Button(btframe, image=down_image(), command=self.decr)
-        bdown.pack(side=tk.TOP)
+        self.bup = tk.Button(btframe, image=up_image(mode), command=self.incr)
+        self.bup.pack(side=tk.TOP)
+        self.bdown = tk.Button(btframe, image=down_image(mode), command=self.decr)
+        self.bdown.pack(side=tk.TOP)
         btframe.pack(side=tk.LEFT)
         self.add_widget(container)
         self.set(value)
+
+    def config(self, **kw):
+        "config reimplementation"
+        if "state" in kw:
+            self.entry.config(state=kw["state"])
+            self.bup.config(state=kw["state"])
+            self.bdown.config(state=kw["state"])
+            del kw["state"]
+        super().config(**kw)
 
     def set(self, value):
         "imposta valore Controller"
@@ -215,7 +258,7 @@ class Controller(LabelFrame):
                 value = self.lower
         self.value = value
         self.entry.delete(0, tk.END)
-        self.entry.insert(0, int(self.value))
+        self.entry.insert(0, self.fmt%value)
 
     def get(self):
         "riporta valore Controller"
@@ -226,7 +269,7 @@ class Controller(LabelFrame):
         else:
             if self.value != value:
                 self.set(value)
-        return int(self.entry.get())
+        return float(self.entry.get())
 
     def incr(self):
         "incrementa valore Controller"
@@ -238,11 +281,11 @@ class Controller(LabelFrame):
         newval = self.get()-self.step
         self.set(newval)
 
-class Announce(tk.Frame):
+class Announce(tk.Frame):              # pylint: disable=R0901
     "Classe per linee con scroll"
     def __init__(self, master, nlines, width=54, **kargs):
         "Costruttore"
-        tk.Frame.__init__(self, master, **kargs)
+        super().__init__(master, **kargs)
         self.lines = []
         while nlines:
             self.lines.append(Field(self, border=0, width=width,
@@ -296,10 +339,10 @@ ICONS = Icons()
 HMS = 1
 DMS = 2
 
-class CoordEntry(tk.Frame):
+class CoordEntry(tk.Frame):              # pylint: disable=R0901
     "Widget per coordinate"
     def __init__(self, parent, label, ctype, width=2, editable=True):
-        tk.Frame.__init__(self, parent)
+        super().__init__(parent)
         tk.Label(self, text=label).pack(side=tk.LEFT)
         self.ctype = ctype
         if ctype == HMS:
@@ -332,18 +375,16 @@ class CoordEntry(tk.Frame):
         ret = self.value_dms()
         if ret:
             if self.ctype == HMS:
-                return astro.hms2rad(*ret)
-            return astro.dms2rad(*ret)
+                return astro.hms2rad(*ret)          # pylint: disable=E1120
+            return astro.dms2rad(*ret)              # pylint: disable=E1120
         return float("nan")
 
-    def set(self, value, _sign=False):
+    def set(self, value):
         "Assegna il valore"
         self.clear()
-        ddd, mmm, sss = astro.float2ums(value)
-        if _sign:
-            self.deg.insert(0, "%+d"%int(ddd))
-        else:
-            self.deg.insert(0, "%d"%int(ddd))
+        sign, ddd, mmm, sss = astro.float2ums(value)
+        ssgn = "-" if sign < 0 else "+"
+        self.deg.insert(0, ssgn+"%d"%int(ddd))
         self.mnt.insert(0, "%2.2d"%int(mmm))
         self.sec.insert(0, "%2.2d"%int(sss))
 
@@ -353,13 +394,24 @@ class CoordEntry(tk.Frame):
         self.mnt.delete(0, tk.END)
         self.sec.delete(0, tk.END)
 
-class CButton(LabelFrame):
+class Led(tk.Frame):
+    "Led di vari colori"
+    def __init__(self, parent, border=2, color=None, size=10):
+        if not color:
+            color = parent["bg"]
+        super().__init__(parent, width=size, height=size, border=border, bg=color, relief=tk.RAISED)
+
+    def set(self, color):
+        "Imposta colore del Led"
+        self.config(bg=color)
+
+class CButton(LabelFrame):              # pylint: disable=R0901
     "Bottone colorabile con etichetta opzionale"
     def __init__(self, parent, name, text="", color=None, font=H4_FONT,
                  width=None, command=None, padx=None, pady=None,
                  label=None, label_side=tk.W, label_font=H4_FONT, **kw):
-        LabelFrame.__init__(self, parent, label=label,
-                            label_side=label_side, label_font=label_font, **kw)
+        super().__init__(parent, label=label, label_side=label_side,
+                         label_font=label_font, **kw)
         self.name = name
         if command:
             _command = lambda name=name: command(name)
@@ -385,13 +437,13 @@ class CButton(LabelFrame):
         "Azzera  bottone"
         self.set(None)
 
-class MButton(LabelFrame):
+class MButton(LabelFrame):              # pylint: disable=R0901
     "Bottone Multi-icona a piu stati con Label"
     def __init__(self, parent, name, shape, size, value=None,
                  label=None, label_side=tk.W, label_font=H4_FONT,
                  command=None, **kw):
-        LabelFrame.__init__(self, parent, label=label,
-                            label_side=label_side, label_font=label_font, **kw)
+        super().__init__(parent, label=label, label_side=label_side,
+                         label_font=label_font, **kw)
         self.name = name
         self.status = 0
         self.shape = shape
@@ -424,29 +476,28 @@ class MButton(LabelFrame):
             else:
                 idx = status
         self.status = idx
-        self.wdg.config(image=ICONS.get_icon((self.shape, self.size, self.states[idx])))
+        self.widget.config(image=ICONS.get_icon((self.shape, self.size, self.states[idx])))
 
     def clear(self):
         "Azzera bottone"
         self.set(0)
 
-class FrameTitle(tk.Frame):
+class FrameTitle(tk.Frame):              # pylint: disable=R0901
     "Frame con titolo"
     def __init__(self, parent, title, font=H1_FONT, **kw):
-        tk.Frame.__init__(self, parent, padx=5, pady=5, **kw)
+        super().__init__(parent, padx=5, pady=5, **kw)
         self.title = tk.Label(self, text=title, font=font)
         self.title.pack(expand=1, fill=tk.X)
         self.body = tk.Frame(self)
         self.body.pack(expand=1, fill=tk.BOTH)
 
-class Field(LabelFrame):
+class Field(LabelFrame):              # pylint: disable=R0901
     "Widget per display di stringa generica"
     def __init__(self, parent, bg="black", fg="lightgreen",
                  font="TkDefaultFont", width=10, text="",
-                 label=None, label_side=tk.W, label_font=H4_FONT,
-                 expand=None, fill=None, **kw):
-        LabelFrame.__init__(self, parent, label=label,
-                            label_side=label_side, label_font=label_font, **kw)
+                 label=None, label_side=tk.W, label_font=H4_FONT, **kw):
+        super().__init__(parent, label=label, label_side=label_side,
+                         label_font=label_font, **kw)
         self.add_widget(tk.Label(self, text=text, bg=bg, fg=fg, width=width,
                                  font=font, border=1, relief=tk.SUNKEN))
 
@@ -455,20 +506,20 @@ class Field(LabelFrame):
         if not text:
             self.clear()
         else:
-            self.wdg.config(text=text, **kw)
+            self.widget.config(text=text, **kw)
 
     def clear(self):
         "Azzera campo"
-        self.wdg.config(text="")
+        self.widget.config(text="")
 
-class Number(Field):
+class Number(Field):              # pylint: disable=R0901
     "Widget per display di valore numerico"
-    def __init__(self, parent, _format="%d", **kw):
-        Field.__init__(self, parent, **kw)
-        self._format = _format
+    def __init__(self, parent, fmt="%d", **kw):
+        super().__init__(parent, **kw)
+        self._format = fmt
         self.value = None
 
-    def set(self, value):
+    def set(self, value, **kw):
         "Imposta valore del campo"
         if value is None or math.isnan(value):
             self.clear()
@@ -476,16 +527,16 @@ class Number(Field):
         else:
             self.value = value
             svalue = self._format%value
-            Field.set(self, svalue)
+            Field.set(self, svalue, **kw)
 
     def get(self):
         "Riporta valore del campo"
         return self.value
 
-class Coord(Field):
+class Coord(Field):              # pylint: disable=R0901
     "Classe per display di coordinata"
     def __init__(self, parent, value=None, **kw):
-        Field.__init__(self, parent, **kw)
+        super().__init__(parent, **kw)
         self.set(value)
 
     def set(self, value):
@@ -493,23 +544,25 @@ class Coord(Field):
         try:
             dms = astro.float2ums(value)
         except:
-            value = None
-        self.value = value
-        if value is None:
+            self.value = None
             self.clear()
             return
-        strv = "%d:%2.2d:%2.2d"%dms[1:]
+        self.value = value
+        ssgn = "-" if dms[0] < 0 else "+"
+        if value == 0:
+            ssgn = " "
+        strv = "%s%d:%2.2d:%2.2d"%(ssgn, dms[1], dms[2], dms[3])
         Field.set(self, strv)
 
     def get(self):
         "Riporta valore numerico widget"
         return self.value
 
-class WarningMsg(tk.Frame):
+class Message(tk.Frame):              # pylint: disable=R0901
     "Display di messaggio"
     def __init__(self, parent, msg):
+        super().__init__(parent)
         self.parent = parent
-        tk.Frame.__init__(self, parent)
         lines_len = tuple(len(x) for x in msg.split("\n"))
         n_lines = len(lines_len)+1
         n_chars = max(lines_len)+2
@@ -517,12 +570,32 @@ class WarningMsg(tk.Frame):
                             padx=5, pady=5, border=3, relief=tk.RIDGE)
         self.body.insert(tk.END, msg)
         self.body.pack()
-        CButton(self, "chiude", text="Chiudi", color="light sky blue", command=self._quit).pack()
+        self.status = None
 
     def _quit(self, _unused):
         self.master.quit()
 
-class HSpacer(tk.Label):
+class WarningMsg(Message):              # pylint: disable=R0901
+    "Display di messaggio informativo"
+    def __init__(self, parent, msg):
+        super().__init__(parent, msg)
+        CButton(self, "chiude", text="Chiudi", color="light sky blue", command=self._quit).pack()
+
+class SelectionMsg(Message):              # pylint: disable=R0901
+    "Display di messaggio con scelta opzioni"
+    def __init__(self, parent, msg, choices=None):
+        super().__init__(parent, msg)
+        bot_frame = tk.Frame(self)
+        for nbutt, choice in enumerate(choices):
+            tk.Button(bot_frame, text=choice,
+                      command=lambda x=nbutt: self._quit(x)).pack(side=tk.LEFT)
+        bot_frame.pack()
+
+    def _quit(self, nbutt):
+        self.status = nbutt
+        self.master.quit()
+
+class HSpacer(tk.Label):              # pylint: disable=R0901
     "Spaziatore orizzontale: se nspaces=0, riempie tutto lo spazio disponibile"
     def __init__(self, parent, nspaces=0):
         if nspaces:
@@ -540,6 +613,7 @@ def main():
         print("Premuto bottone:", b_name)
     root = tk.Tk()
     sinistra = FrameTitle(root, "Vari bottoni", border=2, relief=tk.RIDGE)
+    ToolTip(sinistra.title, text="Tooltip del titolo di sinistra")
     avar = tk.IntVar()
     llf = tk.Frame(sinistra)
     LabelRadiobutton(llf, "", avar, 2).pack(side=tk.LEFT)
@@ -559,20 +633,31 @@ def main():
     sinistra.pack(side=tk.LEFT, anchor=tk.N)
     # Esempi di altri widget
     destra = FrameTitle(root, "Altri widget", border=2, relief=tk.RIDGE)
-    # Controller
-    Controller(destra, label="Controller ",
+    # Controller con frecce
+    Controller(destra, label="Controller 1 ",
+               lower=-10, upper=10, circular=True).pack()
+    # Controller +/-
+    Controller(destra, label="Controller 2 ", mode="plus",
                lower=-10, upper=10, circular=True).pack()
     # Campo per visualizzazione stringhe
     fld = Field(destra, label="Campo generico: ", label_side=tk.W)
     fld.pack()
     fld.set("Tarabaralla")
     # Campo per visualizzazione Valori numerici
-    fld = Number(destra, label="Campo numerico: ", _format="%.2f")
+    fld = Number(destra, label="Campo numerico: ", fmt="%.2f")
     fld.pack()
     fld.set(1234)
     crd = Coord(destra, label="Coordinata: ")
     crd.pack()
     crd.set(-137.34)
+    leds = tk.Frame(destra)
+    tk.Label(leds, text="Vari led colorati: ").pack(side=tk.LEFT)
+    Led(leds, color="blue").pack(side=tk.LEFT)
+    Led(leds, color="white", size=15).pack(side=tk.LEFT)
+    Led(leds, size=20).pack(side=tk.LEFT)
+    Led(leds, color="yellow", size=25).pack(side=tk.LEFT)
+    Led(leds, color="red", size=30).pack(side=tk.LEFT)
+    leds.pack()
     destra.pack(side=tk.LEFT, anchor=tk.N)
     root.mainloop()
 

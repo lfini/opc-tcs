@@ -1,5 +1,8 @@
 """
 Calcolo azimut cupola per interpolazione tabelle
+
+Le tabelle vengono generate dalla procedura tel_model.py
+e sono contenute nei files: dometab_e.p e dometab_w.p
 """
 
 import sys
@@ -7,42 +10,48 @@ import os
 import pickle
 
 __version__ = "1.1"
-
-RAD_2_DEG = 57.29577951308232
-HOUR_2_DEG = 15.0
+__author__ = "Luca Fini"
+__date__ = "Dicembre 2020"
 
 class Interpolator:
-    "Interpolatore per posizione cupola"
-    def __init__(self, side, de_units="D", ha_units="H"):
-        "Costruttore. side=e/w"
-        datadir = os.path.dirname(__file__)
+    """
+Interpolatore per posizione cupola
+
+tabdir: Directory per file tabelle
+side:   e=est / w=ovest
+"""
+    def __init__(self, tabdir=".", side="e"):
+        "Costruttore. tabdir: directory per file tabelle"
         fname = "dometab_"+side+".p"
-        datafile = os.path.join(datadir, fname)
+        datafile = os.path.join(tabdir, fname)
         with open(datafile, "rb") as fpt:
             table = pickle.load(fpt)
-        self.__doc__ = table["DOC"]
+        self.tabdir = tabdir
         self.data = table["DATA"]
         self.side = table["SIDE"]
-        de_0 = table["DE_0"]
-        ha_0 = table["HA_0"]*HOUR_2_DEG
-        if de_units == "R":
-            self.cvt_de = lambda de: int(de*RAD_2_DEG-de_0)
-        else:
-            self.cvt_de = lambda de: int(de-de_0)
-        if ha_units == "H":
-            self.cvt_ha = lambda ha: int(ha*HOUR_2_DEG-ha_0)
-        elif ha_units == "R":
-            self.cvt_ha = lambda ha: int(ha*RAD_2_DEG-ha_0)
-        else:
-            self.cvt_ha = lambda ha: int(ha-ha_0)
+        self.ha_step = table["HA_STEP"]
+        self.de_min = table["DE_0"]
+        self.c_de = 1./table["DE_STEP"]
+        self.c_ha = 1./table["HA_STEP"]
+        self.ha_grid = tuple(x*self.ha_step for x in range(len(self.data[0])))
 
-    def interpolate(self, hra, dec):
-        "Trova valore azimut per interpolazione"
+    def de_constant(self, de):           # pylint: disable=C0103
+        "Fornisce linea a declinazione costante"
         try:
-            i_ha = self.cvt_ha(hra)
-            i_de = self.cvt_de(dec)
-            val = self.data[i_de][i_ha]%360
-        except:
+            azl = self.data[int((de-self.de_min)*self.c_de+.5)]
+        except IndexError:
+            azl = None
+        return azl
+
+    def interpolate(self, ha, de):           # pylint: disable=C0103
+        "Trova azimut cupola per interpolazione"
+        ha %= 24.
+        try:
+            azl = self.data[int((de-self.de_min)*self.c_de+.5)]
+            haix = int(ha*self.c_ha)
+            az0 = azl[haix]
+            val = (az0+(azl[haix+1]-az0)*self.c_ha*(ha-self.ha_grid[haix]))%360.
+        except IndexError:
             val = float("nan")
         return val
 
@@ -53,7 +62,7 @@ def main():
     else:
         side = "e"
 
-    interp = Interpolator(side)
+    interp = Interpolator(side=side)
     while True:
         answ = input("ha(ore) de(gradi)? ").strip()
         if not answ:

@@ -1,14 +1,14 @@
-Procedure python per la gestione dell'osservatorio OPC
+Procedure python per la gestione della cupola per OPC
 
-Luca Fini (luca.fini@gmail.com) - ottobre 2020
+Luca Fini (luca.fini@gmail.com) - dicembre 2020
 
-Codice previsto per python 3.x
+Codice previsto per python 3.5 e superiore
 
 NOTA: il codice sorgente è ospitato su: github.com/lfini/opc-tcs
 
-----------------------------------------------------------------
 
 PROCEDURA PRINCIPALE
+====================
 
 dtracker.py: GUI per asservimento della cupola al moto del telescopio
 
@@ -24,38 +24,59 @@ Altre possibili opzioni sono descritte nella pagina di aiuto che si
 ottiene lanciando il programma con l'opzione: -h
 
 
-ALTRE PROCCEDURE DI SUPPORTO
+ALTRE PROCEDURE DI SUPPORTO
+===========================
+
+astrotest.py:    Procedura di test per modulo astro.py (vedi sotto)
+
+configure.py:    Procedura per configurazione dei parametri
+
+setup.py:        Procedura standard per generazione della versione
+                 eseguibile per Win10
 
 telsimulator.py: simulatore del server del telescopio (parziale).
                  Vedi instruzioni di uso con: python telsimulator.py -h
 
 timetest.py: Misura tempi di risposta tipici del server del telescopio 
-astrotest.py: Verifica prestazioni delle procedure in astro.py (vedi sotto)
 
-LIBRERIE
 
-I seguenti file contengono varie funzioni utilizzate dalle procedure
+MODULI
+======
+
+I seguenti moduli contengono classi e funzioni utilizzate dalle procedure
 
 ascom_fake.py: Finto server ASCOM per tests su Linux
 
-astro.py  Implementazione di alcune funzioni di carattere astronomico (per
+astro.py: Implementazione di alcune funzioni di carattere astronomico (per
           evitare dipendenze da librerie esterne)
 
-configure.py: gestione file di configurazione
+interpolator.py: Calcolo posizione cupola per interpolazione
 
-interpolator.py: funzioni di interpolazione per modello geometrico
-                 cupola-telescopio
-
-telecomm.py: implementazione del protocollo LX200 per comunicazione con il
-             telescopio. Può essere usato come porcedura per l'invio manuale
+telecomm.py: Implementazione del protocollo LX200 per comunicazione con il
+             telescopio. Può essere usato come procedura per l'invio manuale
              di comandi al telescopio (help: python telecomm.py -h)
 
 widgets.py: definizione widget utilizzati per la GUI
 
 
-ALTRI FILES FORNITI
+FILES DATI
+==========
 
-./icons/*.gif   Icone utilizzate dalla GUI
+domec128.ico:    Icona per eseguibile Win10
 
-dometab_e.p  Tabelle di interpolazione per modello geometrico
-dometab_w.p  cupola-telescopio
+dometab_e.p:     Tabelle di interpolazione per modello geometrico
+dometab_w.p:     cupola-telescopio
+
+./icons/*.gif:   Icone utilizzate dalla GUI
+
+
+ISTRUZIONI DI INSTALLAZIONE
+===========================
+
+L'installazione consiste semplicemente nell'estrarre i files dall'archivio in
+una directory dedicata.
+
+La procedure per l'asservimento della cupola si può lanciare con:
+
+       python  <percorso...>/dtracker.py
+

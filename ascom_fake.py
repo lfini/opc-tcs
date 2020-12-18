@@ -6,7 +6,7 @@ import time
 
 import astro
 
-RESOLUTION = 1.
+RESOLUTION = 0.4
 TIMESTEP = 0.02
 PRINT_COUNT = int(1./TIMESTEP)
 STEP = RESOLUTION/20.
@@ -69,5 +69,19 @@ class Dispatch(Thread):
 
     def SlewToAzimuth(self, azh):
         "Movimento cupola"
-        print("SC: SlewToAzimuth(%d) - current: %.3f"%(azh, self._azimuth))
-        self.targetaz = azh%360
+        print("SC: SlewToAzimuth(%.2f) - current: %.3f"%(azh, self._azimuth))
+        self.targetaz = azh%360.
+
+    def FindHome(self):
+        "Vai ad home"
+        print("SC: FindHome()")
+        self.Azimuth = 0.
+        self._azimuth = 0.
+        self.Slewing = False
+
+    def Park(self):
+        "Vai a posizione park"
+        print("SC: Park()")
+        self.Azimuth = 0.
+        self._azimuth = 0.
+        self.Slewing = False
