@@ -3,7 +3,7 @@
 OPC - Asservimento cupola [%s]
 
 Uso:
-        python3 dtracker.py [-s] [-h] [-v]
+        python dtracker.py [-s] [-h] [-v]
 
 Dove:
        -h  Mostra questa pagina ed esce
@@ -15,18 +15,19 @@ import os.path
 import time
 import math
 
-from tkinter import Tk, Button, Entry, Frame, Label, Checkbutton, IntVar, PhotoImage
+from tkinter import Tk, Button, Entry, Frame, Label, Checkbutton
+from tkinter import IntVar, PhotoImage, Toplevel
 from tkinter import DISABLED, E, END, LEFT, NORMAL, RIDGE, W, X
 from widgets import WarningMsg, Field, Number, Coord, Led, ToolTip
-from widgets import HSpacer, Controller, BD_FONT, H3_FONT
+from widgets import YesNo, HSpacer, Controller, MyToplevel, BD_FONT, H3_FONT
 
 from telecomm import TeleCommunicator
 import configure
 from interpolator import Interpolator
 
 __author__ = "Luca Fini"
-__version__ = "1.2"
-__date__ = "Dicembre 2020"
+__version__ = "1.3"
+__date__ = "Gennaio 2021"
 
 try:
     import win32com.client as wcl
@@ -52,9 +53,10 @@ SIDES = "EW"
 FLOAT_NAN = float("nan")
 
 NO_CONFIG = """
-  File di configurazione mancante
+  File di configurazione mancante o incompleto
 
-  Può essere creato con "configure.py"
+  Sarà creato un file di default che sarà attivo
+  al prossimo restart
 """
 
 INTERP_E = Interpolator(side="e")
@@ -123,12 +125,68 @@ def dome_azimuth(ha_h, de_d, side):
         az_deg = None
     return az_deg
 
+THREEMONTHS = 2678400  # numero di secondi in tre mesi
+
+def check_logfiles():
+    "Verifica presenza di files più vecchi di tre mesi"
+    logfiles = [x for x in os.listdir(HOMEDIR) if x.endswith("dtracker.log")]
+    maxage = time.time()-THREEMONTHS
+    oldies = []
+    for fname in logfiles:
+        fpath = os.path.join(HOMEDIR, fname)
+        if os.stat(fpath).st_mtime < maxage:
+            oldies.append(fpath)
+    if len(oldies) > 0:
+        tplvl = MyToplevel(GLOB.root)
+        tplvl.title("Logger")
+        vinfo = """
+
+  ATTENZIONE: ci sono %d file di log
+  più vecchi di tre mesi.
+
+  Posso cancellarli?
+"""%len(oldies)
+
+        wdg = YesNo(tplvl, vinfo)
+        wdg.pack()
+        tplvl.position(50, 0)
+        GLOB.root.wait_window(tplvl)
+        if wdg.status:
+            for fpath in oldies:
+                os.unlink(fpath)
+
+def mod_config(new=False):
+    "Apre pannello per modifica configurazione"
+    tplvl = MyToplevel(GLOB.root)
+    tplvl.title("Configurazione DTracker")
+    wdg = configure.MakeConfig(tplvl)
+    wdg.pack()
+    tplvl.position(50, 50)
+
+def about(lname):
+    "Apre pannello con informazioni"
+    tplvl = MyToplevel(GLOB.root)
+    tplvl.title("DTracker")
+    vinfo = """
+  Dtracker - Asservimento cupola OPC
+
+  Vers. %s - %s, %s
+  ----------------------------------
+  Logfile: %s
+  ----------------------------------
+  """%(__version__, __author__, __date__, lname)
+
+    wdg = WarningMsg(tplvl, vinfo+configure.as_string(GLOB.config))
+    wdg.pack()
+    tplvl.position(50, 50)
+
 class DTracker(Frame):            # pylint: disable=R0901,R0902
     "Widget per asservimento cupola"
     def __init__(self, parent, logging=False):
         super().__init__(parent)
         self._leftarrow = PhotoImage(data=LEFT_ARROW_DATA)
         self.tel = TeleCommunicator(GLOB.config["tel_ip"], GLOB.config["tel_port"])
+        self.logname = os.path.join(HOMEDIR, time.strftime("%Y-%m-%d-dtracker.log"))
         top_fr = Frame(self, pady=4)
         Label(top_fr, text="  Telescopio ", font=H3_FONT).grid(row=1, column=1)
         tel_fr = Frame(top_fr)
@@ -155,7 +213,7 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
         tel_fr.grid(row=1, column=2, ipady=4, sticky=W)
         self.tel_led = Led(top_fr, size=20)
         self.tel_led.grid(row=1, column=3)
-        ToolTip(self.tel_led, text="Comunicazione con telescopio")
+        ToolTip(self.tel_led, text="Stato comunicazione con telescopio")
         Label(top_fr, text="  Cupola ", font=H3_FONT).grid(row=3, column=1, sticky=E)
         dome_fr = Frame(top_fr)
         Label(dome_fr, text="  Az(d): ").pack(side=LEFT)
@@ -183,12 +241,12 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
         self.offset = Controller(dome_fr, label="   Ofs:", lower=-5, upper=5, label_font=BD_FONT,
                                  step=0.5, width=3, fmt="%.1f", mode="plus")
         self.offset.pack(side=LEFT)
-        ToolTip(self.offset, text="Offset posizione cupola")
+        ToolTip(self.offset, text="Offset posizione")
         HSpacer(dome_fr).pack(side=LEFT)
         dome_fr.grid(row=3, column=2, sticky=W+E, ipady=4)
         self.dome_led = Led(top_fr, size=20)
         self.dome_led.grid(row=3, column=3)
-        ToolTip(self.dome_led, text="Comunicazione con cupola")
+        ToolTip(self.dome_led, text="Stato comunicazione con cupola")
         Label(top_fr, text=" ").grid(row=1, column=4)
         Frame(top_fr, border=3, relief=RIDGE, bg="black").grid(row=2, column=1,
                                                                columnspan=4, sticky=W+E)
@@ -202,14 +260,22 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
         Checkbutton(log_fr, variable=self.log_stat, command=self.tog_logger).pack(side=LEFT)
         log_fr.pack(side=LEFT)
         ToolTip(log_fr, text="Abilita/disabilita logging")
+        HSpacer(bot_fr, 2).pack(side=LEFT)
+        confb = Button(bot_fr, text="C", padx=5, pady=2, font=BD_FONT, command=mod_config)
+        confb.pack(side=LEFT)
+        ToolTip(confb, text="Mofica configurazione")
+        HSpacer(bot_fr, 2).pack(side=LEFT)
+        aboutb = Button(bot_fr, text="?", padx=5, pady=2, font=BD_FONT, command=lambda x=self.logname: about(x))
+        aboutb.pack(side=LEFT)
+        ToolTip(aboutb, text="Informazioni sul programma")
         HSpacer(bot_fr).pack(side=LEFT)
         self.parkb = Button(bot_fr, text="Park", width=5, command=self.park)
         self.parkb.pack(side=LEFT)
-        self.homeb = Button(bot_fr, text="Home", width=5, command=self.findhome)
-        self.homeb.pack(side=LEFT)
+        ToolTip(self.parkb, text="Muovi in posizione Park")
         HSpacer(bot_fr, 3).pack(side=LEFT)
         self.syncb = Button(bot_fr, text="Sync", width=5, command=self.sync)
         self.syncb.pack(side=LEFT)
+        ToolTip(self.syncb, text="Imposta posizione assoluta")
         self.sync_val = Entry(bot_fr, width=5)
         self.sync_val.pack(side=LEFT)
         HSpacer(bot_fr, 1).pack(side=LEFT)
@@ -223,6 +289,7 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
         else:
             self.stop_logger()
         self.update()
+        self.after(1000, check_logfiles)
 
     def move_dome(self, target):
         "Movimento cupola"
@@ -276,8 +343,7 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
 
     def start_logger(self):
         "Abilita logging dei dati"
-        logname = os.path.join(HOMEDIR, time.strftime("%Y-%m-%d-dtracker.log"))
-        self.logfile = open(logname, "a")
+        self.logfile = open(self.logname, "a")
         self.log_mark("Log attivato - "+time.strftime("%Y-%m-%d %H:%M:%S"))
         self.log_mark("Periodo aggiornamento: %d (ms)"%UPDATE_TRACKER)
         self.log_mark("Max errore di tracking: %.2f (gradi)"%GLOB.dome_maxerr)
@@ -299,14 +365,12 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
             self.arrowb.config(state=NORMAL)
             self.val_target.config(state=NORMAL)
             self.parkb.config(state=NORMAL)
-            self.homeb.config(state=NORMAL)
             self.syncb.config(state=NORMAL)
             self.offset.config(state=DISABLED)
         else:
             self.arrowb.config(state=DISABLED)
             self.val_target.config(state=DISABLED)
             self.parkb.config(state=DISABLED)
-            self.homeb.config(state=DISABLED)
             self.syncb.config(state=DISABLED)
             self.offset.config(state=NORMAL)
 
@@ -347,17 +411,6 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
         else:
             self.set_slave(True)
 
-    def findhome(self):
-        "Ritorna in posizione home"
-        if self._slave:
-            return
-        self.target_az = None
-        self.trgt_az.set(None)
-        self.log_mark("CMD AbortSlew")
-        GLOB.dome.AbortSlew()
-        self.log_mark("CMD FindHome")
-        GLOB.dome.FindHome()
-
     def park(self):
         "Ritorna in posizione park"
         if self._slave:
@@ -366,8 +419,9 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
         self.trgt_az.set(None)
         self.log_mark("CMD AbortSlew")
         GLOB.dome.AbortSlew()
-        self.log_mark("CMD Park")
-        GLOB.dome.Park()
+        self.target_az = GLOB.config["park_position"]
+        self.trgt_az.set(self.target_az)
+        self.log_mark("CMD Park at %d"%self.target_az)
 
     def sync(self):
         "Sincronizza posizione cupola"
@@ -443,7 +497,7 @@ class DTracker(Frame):            # pylint: disable=R0901,R0902
             self.attgt_led.set("gray")
         if self.target_az is not None:
             self._log(slw, azm, self.target_az, telrep)
-        self.after(UPDATE_TRACKER, self.update)
+        self.after(GLOB.repeat, self.update)
 
     def setinfo(self, info):
         "Scrive in linea di stato"
@@ -455,13 +509,11 @@ def main():
         print(__version__)
         sys.exit()
 
-    GLOB.config = configure.get_config()
     if '-s' in sys.argv:
-        GLOB.config["tel_ip"] = "127.0.0.1"
-        GLOB.config["tel_port"] = 9753
-        GLOB.config["debug"] = 1
+        GLOB.config = configure.get_config(0)
         mode = " [Sim. Tel.]"
     else:
+        GLOB.config = configure.get_config(2)
         mode = ""
 
     if SIMULATED_ASCOM:
@@ -478,6 +530,7 @@ def main():
         GLOB.root.title("OPC - Asservimento cupola - V. %s%s"%(__version__, mode))
         GLOB.dome_maxerr = GLOB.config["dome_maxerr"]
         GLOB.dome_crit = GLOB.config["dome_critical"]
+        GLOB.repeat = int(GLOB.config["repeat"]*1000)
         if not GLOB.dome.Connected:
             msg = "Errore comunicazione con cupola"
             wdg = WarningMsg(GLOB.root, msg)
@@ -485,8 +538,8 @@ def main():
             wdg = DTracker(GLOB.root, logging=True)
             GLOB.root.protocol("WM_DELETE_WINDOW", wdg.termina)
     else:
-        GLOB.root.title("OPC - Configurazione parametri")
-        wdg = configure.MakeConfig(GLOB.root, force=True)
+        wdg = WarningMsg(GLOB.root, NO_CONFIG)
+        configure.store_config()
     wdg.pack()
     GLOB.root.mainloop()
 

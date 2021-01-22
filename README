@@ -1,56 +1,57 @@
 Procedure python per la gestione della cupola per OPC
 
-Luca Fini (luca.fini@gmail.com) - dicembre 2020
+Luca Fini (luca.fini@gmail.com) - gennaio 2021
 
 Codice previsto per python 3.5 e superiore
 
 NOTA: il codice sorgente è ospitato su: github.com/lfini/opc-tcs
 
 
-PROCEDURA PRINCIPALE
-====================
+ISTRUZIONI DI INSTALLAZIONE (Windows)
+========================================
 
-dtracker.py: GUI per asservimento della cupola al moto del telescopio
+L'installazione consiste semplicemente nell'estrarre i files dall'archivio in
+una cartella dedicata ed eseguire:
 
-Dipendenze: tkinter, pywin32
+      setup.bat
+
+La procedura di installazione crea uno shortcut sul desktop per il lancio
+del programma
+
+Dopo installazione la cartella può essere cancellata.
+
+
+=====================
+CONTENUTO del PACKAGE
+=====================
+
+dtracker.py: Programma per asservimento della cupola al moto del telescopio
+
+Dipendenze: tkinter, pywin32, winshell
 
 Il programma utilizza il protocollo ASCOM per controllare la cupola, e comunica
 con il telescopio con il protocollo LX200 (su ethernet) implementato nel file telecomm.py
 
-Il programma richiede una configurazione che può essere creata utilizzando
-configure.py
+Il programma richiede un file di configurazione che viene creato automaticamente
+al primo run, e può essere poi modificato
 
 Altre possibili opzioni sono descritte nella pagina di aiuto che si
 ottiene lanciando il programma con l'opzione: -h
 
 
-ALTRE PROCEDURE DI SUPPORTO
-===========================
-
-astrotest.py:    Procedura di test per modulo astro.py (vedi sotto)
-
-configure.py:    Procedura per configurazione dei parametri
-
-setup.py:        Procedura standard per generazione della versione
-                 eseguibile per Win10
-
-telsimulator.py: simulatore del server del telescopio (parziale).
-                 Vedi instruzioni di uso con: python telsimulator.py -h
-
-timetest.py: Misura tempi di risposta tipici del server del telescopio 
-
-
 MODULI
 ======
 
-I seguenti moduli contengono classi e funzioni utilizzate dalle procedure
+I seguenti moduli contengono classi e funzioni utilizzate dal programma dtracker.py
 
 ascom_fake.py: Finto server ASCOM per tests su Linux
 
 astro.py: Implementazione di alcune funzioni di carattere astronomico (per
           evitare dipendenze da librerie esterne)
 
-interpolator.py: Calcolo posizione cupola per interpolazione
+configure.py: Gestione file di configurazione
+
+interpolator.py: Calcolo posizione cupola per interpolazione da tabella
 
 telecomm.py: Implementazione del protocollo LX200 per comunicazione con il
              telescopio. Può essere usato come procedura per l'invio manuale
@@ -62,7 +63,7 @@ widgets.py: definizione widget utilizzati per la GUI
 FILES DATI
 ==========
 
-domec128.ico:    Icona per eseguibile Win10
+domec128.ico:    Icona per shortcut Windows
 
 dometab_e.p:     Tabelle di interpolazione per modello geometrico
 dometab_w.p:     cupola-telescopio
@@ -70,13 +71,19 @@ dometab_w.p:     cupola-telescopio
 ./icons/*.gif:   Icone utilizzate dalla GUI
 
 
-ISTRUZIONI DI INSTALLAZIONE
+ALTRE PROCEDURE DI SUPPORTO
 ===========================
 
-L'installazione consiste semplicemente nell'estrarre i files dall'archivio in
-una directory dedicata.
+astrotest.py:    Procedura di test per modulo astro.py (vedi sotto)
 
-La procedure per l'asservimento della cupola si può lanciare con:
+domeascom.py:    Programma client ASCOM per test
 
-       python  <percorso...>/dtracker.py
+setup.bat:       Procedura di lancio dell'installazione per Windows
+
+setup.py:        Procedura per installazione
+
+telsimulator.py: simulatore del server del telescopio (parziale).
+                 Vedi instruzioni di uso con: python telsimulator.py -h
+
+timetest.py: Misura tempi di risposta tipici del server del telescopio 
 

@@ -558,11 +558,22 @@ class Coord(Field):              # pylint: disable=R0901
         "Riporta valore numerico widget"
         return self.value
 
+class MyToplevel(tk.Toplevel):
+    "Toplevel posizionabile con metodo quit"
+    def quit(self):
+        "Chiamato dal widget interno"
+        self.destroy()
+
+    def position(self, xpp, ypp):
+        "imposta posizione del widget"
+        xp0 = self.master.winfo_x()+xpp
+        yp0 = self.master.winfo_y()+ypp
+        self.geometry("+%d+%d"%(xp0, yp0))
+
 class Message(tk.Frame):              # pylint: disable=R0901
     "Display di messaggio"
     def __init__(self, parent, msg):
         super().__init__(parent)
-        self.parent = parent
         lines_len = tuple(len(x) for x in msg.split("\n"))
         n_lines = len(lines_len)+1
         n_chars = max(lines_len)+2
@@ -580,6 +591,19 @@ class WarningMsg(Message):              # pylint: disable=R0901
     def __init__(self, parent, msg):
         super().__init__(parent, msg)
         CButton(self, "chiude", text="Chiudi", color="light sky blue", command=self._quit).pack()
+
+class YesNo(Message):              # pylint: disable=R0901
+    "Display di messaggio con scelta opzioni Si/No"
+    def __init__(self, parent, msg):
+        super().__init__(parent, msg)
+        bot_frame = tk.Frame(self)
+        tk.Button(bot_frame, text="Si", command=lambda x=True: self._quit(x)).pack(side=tk.LEFT)
+        tk.Button(bot_frame, text="No", command=lambda x=False: self._quit(x)).pack(side=tk.LEFT)
+        bot_frame.pack()
+
+    def _quit(self, isyes):
+        self.status = isyes
+        self.master.quit()
 
 class SelectionMsg(Message):              # pylint: disable=R0901
     "Display di messaggio con scelta opzioni"

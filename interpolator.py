@@ -20,13 +20,16 @@ Interpolatore per posizione cupola
 tabdir: Directory per file tabelle
 side:   e=est / w=ovest
 """
-    def __init__(self, tabdir=".", side="e"):
+    def __init__(self, tabdir=None, side="e"):
         "Costruttore. tabdir: directory per file tabelle"
+        if tabdir is None:
+            self.tabdir = os.path.dirname(__file__)
+        else:
+            self.tabdir = tabdir
         fname = "dometab_"+side+".p"
-        datafile = os.path.join(tabdir, fname)
+        datafile = os.path.join(self.tabdir, fname)
         with open(datafile, "rb") as fpt:
             table = pickle.load(fpt)
-        self.tabdir = tabdir
         self.data = table["DATA"]
         self.side = table["SIDE"]
         self.ha_step = table["HA_STEP"]
