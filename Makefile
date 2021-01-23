@@ -3,8 +3,10 @@
 # dtracker.zip:    kit completo, incluse le procedure di test
 #
 
+VERSION := $(shell python dtracker.py -v)
+
 all: 
-	zip -r dtracker.zip . -i *.py -i *.p -i README -i icons/* -i domec128.ico setup.bat
+	zip -r dtracker-$(VERSION).zip . -i *.py -i *.p -i README -i icons/* -i domec128.ico setup.bat
 
 clean:
 	rm -rf __pycache__
