@@ -15,7 +15,7 @@ una cartella dedicata ed eseguire:
 
       setup.bat
 
-La procedura di installazione crea uno shortcut sul desktop per il lancio
+La procedura di installazione crea un collegamento sul desktop per il lancio
 del programma
 
 Dopo installazione la cartella può essere cancellata.
@@ -63,7 +63,7 @@ widgets.py: definizione widget utilizzati per la GUI
 FILES DATI
 ==========
 
-domec128.ico:    Icona per shortcut Windows
+domec128.ico:    Icona per collegamento Windows
 
 dometab_e.p:     Tabelle di interpolazione per modello geometrico
 dometab_w.p:     cupola-telescopio
@@ -74,16 +74,19 @@ dometab_w.p:     cupola-telescopio
 ALTRE PROCEDURE DI SUPPORTO
 ===========================
 
-astrotest.py:    Procedura di test per modulo astro.py (vedi sotto)
+astrotest.py:     Procedura di test per modulo astro.py (vedi sotto)
 
-domeascom.py:    Programma client ASCOM per test
+collegamento.bat: Procedura per visualizzare leistruzioni di creazione
+                  del collegamento
 
-setup.bat:       Procedura di lancio dell'installazione per Windows
+domeascom.py:     Programma client ASCOM per test
 
-setup.py:        Procedura per installazione
+setup.bat:        Procedura di lancio dell'installazione per Windows
+ 
+setup.py:         Procedura per installazione
 
-telsimulator.py: simulatore del server del telescopio (parziale).
-                 Vedi instruzioni di uso con: python telsimulator.py -h
+telsimulator.py:  simulatore del server del telescopio (parziale).
+                  Vedi instruzioni di uso con: python telsimulator.py -h
 
 timetest.py: Misura tempi di risposta tipici del server del telescopio 
 

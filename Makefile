@@ -5,8 +5,16 @@
 
 VERSION := $(shell python dtracker.py -v)
 
+PYTHONFILES := $(shell ls *.py)
+DATAFILES := $(shell ls *.p)
+
 all: 
-	zip -r dtracker-$(VERSION).zip . -i *.py -i *.p -i README -i icons/* -i domec128.ico setup.bat
+	mkdir dist
+	cp $(PYTHONFILES) ./dist
+	cp $(DATAFILES) ./dist
+	cp domec128.ico ./dist
+	zip -r dtracker-$(VERSION).zip README setup.bat collegamento.bat dist icons
+	rm -rf dist
 
 clean:
 	rm -rf __pycache__

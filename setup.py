@@ -41,19 +41,14 @@ NO_WINSHELL = """
 Non è installato il modulo python "winshell".
 
 La procedura di installazione può proseguire egualmente, ma non sarà
-creato lo 'shortcut' di start sul desktop. 
+creato il collegamento di start sul desktop. 
 
-Se rispondi "SI" alla domanda, sarà necessario creare manualmente lo
-'shortcut' specificando come destinazione il comando completo: 
+Se rispondi "SI" alla domanda, sarà necessario creare manualmente il
+collegamento (riceverai istruzioni al termine dell'istallazione).
 
-   %s  %s
-
-ed il percorso dell'icona:
-
-   %s
-
-In alternativa, puoi rispondere "NO" per interrompere l'installazione
-e riprenderla dopo aver installato il modulo winshell con il comando:
+In alternativa (scelta consigliata), puoi rispondere "NO" per interrompere
+l'installazione e riprenderla dopo aver installato il modulo winshell
+con il comando:
 
          python -m pip install winshell
 
@@ -66,8 +61,26 @@ Istallazione terminata (la cartella di installazione
 può essere cancellata)
 """
 
-SHORTCUT = """Lo 'shortcut' per il lancio della procedura
-dovrà essere creato manualmente
+SHORTCUT = """
+Per creare il collegamento per il lancio della procedura, occorre cliccare in un
+punto qualunque dello schermo e scegliere:  nuovo -> collegamento.
+
+Nel campo "Percorso" deve essere impostato il comando completo:
+
+   %s  %s
+
+Poi premere "Avanti" e immettere il nome (ad es.: DTracker)
+
+Infine premere "Fine"
+
+Volendo impostare anche l'icona specifica, cliccare con il tasto destro sul
+collegamento e scegliere "Proprietà" e poi "Cambia icona".
+
+Il percorso dell'icona da specificare è:
+
+   %s
+
+NOTA: per rivedere questo messaggio cliccare su "collegamento.bat"
 """
 
 HOMEDIR = os.path.expanduser("~")
@@ -102,11 +115,15 @@ def nowinshell():
     root = tk.Tk()
     root.title(TITLE)
     root.quit = root.destroy
-    wdg = YesNo(root, NO_WINSHELL%(PYTHONW, SCRIPTPATH, ICONPATH))
+    wdg = YesNo(root, NO_WINSHELL)
     wdg.pack()
     root.after(20, center, root)
     root.mainloop()
     return wdg.status
+
+if "-s" in sys.argv:
+    message(SHORTCUT%(PYTHONW, SCRIPTPATH, ICONPATH))
+    sys.exit()
     
 if not WIN32COM:
     message(NO_WIN32COM)
@@ -119,11 +136,10 @@ if not WINSHELL:
 
 os.makedirs(ICONDIR, exist_ok=True)
 
-SOURCEFILES = [x for x in os.listdir(".") if x.endswith(".py")]
+SOURCEFILES = [os.path.join("dist", x) for x in os.listdir("dist") if os.path.splitext(x)[1] in (".py", ".ico", ".p")]
 ICONFILES = [os.path.join("icons", x) for x in os.listdir("icons")]
-DATAFILES = ["dometab_e.p", "dometab_w.p", ICONFILE]
 
-for src in SOURCEFILES+DATAFILES:           # Installa scripts e file dati
+for src in SOURCEFILES:                      # Installa scripts e file dati
     shutil.copy(src, DESTDIR)
 print("Copiati scripts e file dati")
 
@@ -140,7 +156,7 @@ if WINSHELL:
     SHORTC.WorkingDirectory = DESTDIR
     SHORTC.IconLocation = ICONPATH
     SHORTC.save()
-    print("Generato shortcut su Desktop")
+    print("Generato collegamento su Desktop")
     message(OK)
 else:
-    message(OK+SHORTCUT)
+    message(OK+SHORTCUT%(PYTHONW, SCRIPTPATH, ICONPATH))
